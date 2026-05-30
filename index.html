@@ -233,7 +233,7 @@
 
             <!-- MATCHES SECTION -->
             <div id="matches" class="section">
-                <h2 class="text-3xl font-semibold tracking-tight mb-6">Your Matches (8)</h2>
+                <h2 class="text-3xl font-semibold tracking-tight mb-6">Your Matches <span id="section-matches-count">(0)</span></h2>
                 <div class="space-y-4" id="matches-list"></div>
             </div>
 
@@ -687,13 +687,12 @@
 
     <!-- Voice Call Modal -->
     <div id="voice-call-modal" onclick="if (event.target.id === 'voice-call-modal') endVoiceCall()" class="hidden fixed inset-0 bg-black/70 z-[130] flex items-center justify-center">
-        <div onclick="event.stopImmediatePropagation()" class="call-interface w-full max-w-sm mx-4 rounded-3xl overflow-hidden text-white shadow-2xl">
+        <div onclick="event.stopImmediatePropagation()" class="call-interface w-full max-w-xl mx-4 rounded-3xl overflow-hidden text-white shadow-2xl scale-[1.35]">
             <div class="px-8 pt-8 pb-4 text-center">
                 <div class="flex justify-center mb-4">
                     <img id="call-avatar" class="w-24 h-24 rounded-full border-4 border-white/30" alt="">
                 </div>
                 <div id="call-name" class="text-2xl font-semibold"></div>
-                <div class="text-emerald-400 text-sm mt-1" id="call-platform">Connected via Microsoft Teams</div>
                 
                 <div class="my-8">
                     <div id="call-timer" class="text-5xl font-mono tracking-[4px]">00:00</div>
@@ -1627,14 +1626,24 @@
         }
 
         function updateMatchesCount() {
-            const countEl = document.getElementById('matches-count')
-            if (!countEl) return
+            const sidebarCount = document.getElementById('matches-count')
+            const sectionCount = document.getElementById('section-matches-count')
             
-            if (bookedSessions.length > 0) {
-                countEl.innerText = bookedSessions.length
-                countEl.classList.remove('hidden')
-            } else {
-                countEl.classList.add('hidden')
+            const count = bookedSessions.length
+            
+            // Sidebar count
+            if (sidebarCount) {
+                if (count > 0) {
+                    sidebarCount.innerText = count
+                    sidebarCount.classList.remove('hidden')
+                } else {
+                    sidebarCount.classList.add('hidden')
+                }
+            }
+            
+            // Section title count
+            if (sectionCount) {
+                sectionCount.innerText = `(${count})`
             }
         }
 

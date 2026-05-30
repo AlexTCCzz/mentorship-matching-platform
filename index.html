@@ -2187,7 +2187,7 @@
                             </button>
                             <div>
                                 <div class="font-semibold text-xl" id="calendar-month-title">June 2026</div>
-                                <div class="text-xs text-indigo-200">Your booked sessions (after June 8)</div>
+                                <div class="text-xs text-indigo-200">Your booked sessions</div>
                             </div>
                             <button onclick="changeCalendarMonth(1, this)" class="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-2xl transition-colors">
                                 <i class="fa-solid fa-chevron-right"></i>
@@ -2273,25 +2273,26 @@
                 dayNumber.innerText = day;
                 dayEl.appendChild(dayNumber);
                 
-                // Only show bookings after June 8, 2026
-                const isAfterJune8 = (year > 2026) || (year === 2026 && month > 6) || (year === 2026 && month === 6 && day > 8);
+                // Show bookings only on specific days (June 10, 17, 24, July 8, etc.)
+                const bookingDays = [10, 17, 24, 8, 15, 22]; // June + July dates
+                let bookingForDay = null;
                 
-                if (isAfterJune8 && bookedSessions.length > 0) {
-                    // Map bookings to dates after June 8
-                    const bookingIndex = (day - 9) % bookedSessions.length;
-                    const booking = bookedSessions[bookingIndex];
+                // Check if this day matches one of our booking days
+                const dayIndex = bookingDays.indexOf(day);
+                if (dayIndex !== -1 && bookedSessions[dayIndex]) {
+                    bookingForDay = bookedSessions[dayIndex];
+                }
+                
+                if (bookingForDay) {
+                    dayEl.classList.add('!border-emerald-400', 'bg-emerald-50');
+                    const bookingInfo = document.createElement('div');
+                    bookingInfo.className = 'text-[9px] text-emerald-700 font-medium mt-0.5 text-center leading-none px-1';
+                    bookingInfo.innerHTML = `${bookingForDay.mentorName}<br>${bookingForDay.dateTime.split(' ').pop()}`;
+                    dayEl.appendChild(bookingInfo);
                     
-                    if (booking) {
-                        dayEl.classList.add('!border-emerald-400', 'bg-emerald-50');
-                        const bookingInfo = document.createElement('div');
-                        bookingInfo.className = 'text-[9px] text-emerald-700 font-medium mt-0.5 text-center leading-none px-1';
-                        bookingInfo.innerHTML = `${booking.mentorName}<br>${booking.dateTime.split(' ').pop()}`;
-                        dayEl.appendChild(bookingInfo);
-                        
-                        dayEl.onclick = () => {
-                            alert(`Session with ${booking.mentorName}\n${booking.dateTime}\nDuration: ${booking.duration || '30 mins'}\n\nStatus: Confirmed ✓`);
-                        };
-                    }
+                    dayEl.onclick = () => {
+                        alert(`Session with ${bookingForDay.mentorName}\n${bookingForDay.dateTime}\nDuration: ${bookingForDay.duration || '30 mins'}\n\nStatus: Confirmed ✓`);
+                    };
                 }
                 
                 grid.appendChild(dayEl);

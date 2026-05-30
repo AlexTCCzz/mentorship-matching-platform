@@ -1,0 +1,2312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MentorMatch • Final Prototype</title>
+    <!-- Suppress Tailwind CDN production warning early (this is a standalone prototype) -->
+    <script>
+      (function() {
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+          if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+            return;
+          }
+          originalWarn.apply(console, args);
+        };
+      })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Poppins:wght@500;600&amp;display=swap');
+        
+        body { font-family: 'Inter', system_ui, sans-serif; }
+        .logo-font { font-family: 'Poppins', system_ui, sans-serif; font-weight: 600; }
+
+        .mentor-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .mentor-card:hover { transform: translateY(-8px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+
+        .nav-item { transition: all 0.2s ease; }
+        .nav-item:hover { background-color: #f8fafc; }
+        .nav-item.active { background-color: #6366f1; color: white !important; }
+
+        .section { display: none; }
+        .section.active { display: block; }
+
+        .star { cursor: pointer; transition: color 0.2s ease; }
+        .star:hover { color: #fbbf24; }
+
+        .chat-bubble { max-width: 75%; padding: 12px 16px; border-radius: 20px; margin-bottom: 8px; }
+        .chat-bubble.user { background-color: #6366f1; color: white; border-bottom-right-radius: 6px; margin-left: auto; }
+        .chat-bubble.mentor { background-color: #f1e7ff; color: #4338ca; border-bottom-left-radius: 6px; }
+
+        .modal { animation: modalPop 0.3s ease forwards; }
+        @keyframes modalPop { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+        .fancy-badge {
+            position: relative;
+            overflow: hidden;
+        }
+        .fancy-badge.gold { background: linear-gradient(135deg, #f59e0b, #fbbf24, #f59e0b); color: white; box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); border: 1px solid #fcd34d; }
+        .fancy-badge.platinum { background: linear-gradient(135deg, #64748b, #94a3b8, #64748b); color: white; box-shadow: 0 0 20px rgba(148, 163, 184, 0.6); border: 1px solid #cbd5e1; }
+        .fancy-badge::after { content: ''; position: absolute; top: -50%; left: -100%; width: 40%; height: 200%; background: linear-gradient(120deg, transparent, rgba(255,255,255,0.6), transparent); animation: shine 1.5s infinite; }
+        @keyframes shine { 0% { transform: translateX(-100%); } 20% { transform: translateX(300%); } 100% { transform: translateX(300%); } }
+
+        .time-slot { transition: all 0.2s ease; }
+        .time-slot:hover { background-color: #6366f1; color: white; transform: scale(1.02); }
+
+        .call-interface { background: linear-gradient(180deg, #1e2937 0%, #0f172a 100%); }
+
+        .health-score { font-variant-numeric: tabular-nums; }
+        .health-bar { height: 6px; background: linear-gradient(to right, #10b981, #34d399); border-radius: 9999px; transition: width 0.4s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-screen-2xl mx-auto">
+            <div class="px-8 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-x-3">
+                    <div class="flex items-center gap-x-2">
+                        <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center">
+                            <i class="fa-solid fa-handshake text-white text-3xl"></i>
+                        </div>
+                        <span class="logo-font text-3xl font-semibold tracking-tighter text-slate-900">MentorMatch</span>
+                    </div>
+                    
+                    <div class="hidden md:flex items-center bg-slate-100 rounded-3xl px-4 py-2 w-80">
+                        <i class="fa-solid fa-search text-slate-400 mr-3"></i>
+                        <input type="text" id="global-search" class="bg-transparent border-none focus:outline-none text-sm w-full placeholder:text-slate-400" placeholder="Search mentors or topics...">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-x-4">
+                    <div class="flex items-center gap-x-3">
+                        <div class="text-right">
+                            <div class="font-semibold text-sm">Mentee</div>
+                            <div class="text-xs text-emerald-600 flex items-center justify-end gap-x-1">
+                                <i class="fa-solid fa-check-circle"></i>
+                                <span>Verified</span>
+                            </div>
+                        </div>
+                        <div class="w-10 h-10 rounded-2xl overflow-hidden border-2 border-white shadow-sm">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=MenteeAlex" alt="Mentee" class="w-full h-full object-cover">
+                        </div>
+                    </div>
+                    
+                    <div class="relative cursor-pointer" onclick="showNotifications()">
+                        <i class="fa-solid fa-bell text-xl text-slate-600 hover:text-slate-800 transition-colors"></i>
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-medium">3</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-screen-2xl mx-auto flex">
+        <!-- Sidebar -->
+        <div class="w-72 bg-white border-r border-slate-200 min-h-screen p-5 hidden lg:block" id="desktop-sidebar">
+            <div class="space-y-1">
+                <div onclick="switchSection('home')" class="nav-item active flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer" id="nav-home">
+                    <i class="fa-solid fa-home w-5"></i><span>Home</span>
+                </div>
+                <div onclick="switchSection('discover')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-discover">
+                    <i class="fa-solid fa-search w-5"></i><span>Discover Mentors</span>
+                </div>
+                <div onclick="switchSection('matches')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-matches">
+                    <i class="fa-solid fa-users w-5"></i><span>My Matches <span id="matches-count" class="ml-1 text-xs bg-emerald-100 text-emerald-700 px-1.5 rounded-full hidden">0</span></span>
+                </div>
+                <div onclick="switchSection('health')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-health">
+                    <i class="fa-solid fa-chart-line w-5"></i><span>Health Dashboard</span>
+                </div>
+                <div onclick="switchSection('achievements')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-achievements">
+                    <i class="fa-solid fa-trophy w-5"></i><span>Achievements</span>
+                </div>
+                <div onclick="switchSection('gamification')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-gamification">
+                    <i class="fa-solid fa-gift w-5"></i><span>Gamification</span>
+                </div>
+                <div onclick="switchSection('progress')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-progress">
+                    <i class="fa-solid fa-chart-bar w-5"></i><span>Progress Tracking</span>
+                </div>
+                <div onclick="switchSection('resources')" class="nav-item flex items-center gap-x-3 px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer text-slate-600" id="nav-resources">
+                    <i class="fa-solid fa-book w-5"></i><span>Resources</span>
+                </div>
+            </div>
+
+            <div class="mt-8 px-4">
+                <div class="text-xs font-semibold text-slate-400 mb-3 px-2">QUICK STATS</div>
+                <div class="bg-slate-50 rounded-2xl p-4 space-y-3">
+                    <div class="flex justify-between items-center"><div class="text-sm text-slate-600">Sessions completed</div><div class="font-semibold">24</div></div>
+                    <div class="flex justify-between items-center"><div class="text-sm text-slate-600">Avg. rating given</div><div class="font-semibold flex items-center gap-x-1">4.8 <i class="fa-solid fa-star text-amber-400 text-xs"></i></div></div>
+                    <div class="flex justify-between items-center"><div class="text-sm text-slate-600">Badges earned</div><div class="font-semibold text-indigo-600">8/12</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-8 max-w-[1100px]">
+            
+            <!-- HOME SECTION -->
+            <div id="home" class="section active">
+                <div class="mb-8">
+                    <div class="flex items-end justify-between">
+                        <div>
+                            <h1 class="text-4xl font-semibold tracking-tight">Welcome back, Mentee 👋</h1>
+                            <p class="text-slate-600 mt-1">You've completed <span class="font-semibold text-emerald-600">24 sessions</span> this year. Keep going!</p>
+                        </div>
+                        <button onclick="switchSection('discover')" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 transition-colors text-white rounded-3xl flex items-center gap-x-2 text-sm font-semibold shadow-sm">
+                            <i class="fa-solid fa-search"></i><span>Find new mentors</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+                    <div class="bg-white border border-slate-100 rounded-3xl p-6">
+                        <div class="flex items-center justify-between">
+                            <div><div class="text-sm text-slate-500">This month</div><div class="text-3xl font-semibold mt-1">7</div><div class="text-emerald-600 text-sm font-medium">sessions</div></div>
+                            <div class="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center"><i class="fa-solid fa-calendar-check text-emerald-600 text-2xl"></i></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white border border-slate-100 rounded-3xl p-6">
+                        <div class="flex items-center justify-between">
+                            <div><div class="text-sm text-slate-500">Your rating</div><div class="text-3xl font-semibold mt-1 flex items-baseline">4.9 <span class="text-sm font-normal text-slate-400 ml-1">/5</span></div><div class="text-emerald-600 text-sm font-medium">from 19 reviews</div></div>
+                            <div class="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center"><i class="fa-solid fa-star text-amber-500 text-2xl"></i></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white border border-slate-100 rounded-3xl p-6 cursor-pointer" onclick="switchSection('achievements')">
+                        <div class="flex items-center justify-between">
+                            <div><div class="text-sm text-slate-500">Badges unlocked</div><div class="text-3xl font-semibold mt-1">8</div><div class="text-indigo-600 text-sm font-medium">+3 this month</div></div>
+                            <div class="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center"><i class="fa-solid fa-medal text-indigo-600 text-2xl"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Sessions -->
+                <div class="mb-4 flex items-center justify-between">
+                    <h3 class="font-semibold text-xl">Upcoming Sessions</h3>
+                    <span class="text-sm text-indigo-600 cursor-pointer hover:underline" onclick="showCalendarModal()">View calendar →</span>
+                </div>
+                <div id="upcoming-sessions" class="bg-white border border-slate-100 rounded-3xl p-5 mb-8">
+                    <div class="text-center py-4 text-slate-400 text-sm">No upcoming sessions yet. Book one from Discover!</div>
+                </div>
+
+                <div class="mb-4 flex items-center justify-between">
+                    <h3 class="font-semibold text-xl">Recent matches</h3>
+                    <span onclick="switchSection('matches')" class="text-sm text-indigo-600 cursor-pointer hover:underline">View all →</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="recent-matches-home">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- DISCOVER SECTION (Updated Flow) -->
+            <div id="discover" class="section">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-3xl font-semibold tracking-tight">Discover Mentors</h2>
+                        <p class="text-slate-600">142 mentors available • 18 new this week</p>
+                        <p class="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                            <i class="fa-solid fa-shield-halved"></i> 
+                            <span>All matches respect reporting lines for full psychological safety</span>
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-x-2">
+                        <select class="bg-white border border-slate-200 text-sm rounded-2xl px-4 py-2 focus:outline-none" onchange="filterMentors(this.value)">
+                            <option value="">All expertise</option>
+                            <option value="Leadership">Leadership</option>
+                            <option value="Career">Career Growth</option>
+                            <option value="Strategy">Strategy</option>
+                            <option value="Team">Team Building</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="mentor-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <!-- Populated by JS - Only Schedule button -->
+                </div>
+            </div>
+
+            <!-- MATCHES SECTION -->
+            <div id="matches" class="section">
+                <h2 class="text-3xl font-semibold tracking-tight mb-6">Your Matches <span id="section-matches-count">(0)</span></h2>
+                <div class="space-y-4" id="matches-list"></div>
+            </div>
+
+            <!-- HEALTH DASHBOARD -->
+            <div id="health" class="section">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-semibold tracking-tight">Health Dashboard</h2>
+                    <p class="text-slate-600">Monitor pairing activity, health scores, and engagement trends</p>
+                </div>
+
+                <div class="bg-white border border-slate-100 rounded-3xl p-6 mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <div class="font-semibold text-xl">Active Members</div>
+                            <div class="text-sm text-slate-500">Last 30 days (demo scale)</div>
+                        </div>
+                        <div class="flex items-center gap-x-2 text-sm">
+                            <div class="flex items-center gap-x-1"><div class="w-3 h-3 bg-indigo-600 rounded-full"></div><span>Mentees</span></div>
+                            <div class="flex items-center gap-x-1"><div class="w-3 h-3 bg-emerald-600 rounded-full"></div><span>Mentors</span></div>
+                        </div>
+                    </div>
+                    <div class="h-72">
+                        <canvas id="activeMembersChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-100 rounded-3xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <div class="font-semibold text-xl">Pairing Health Scores</div>
+                            <div class="text-sm text-slate-500">24 active pairings • 3 flagged for review</div>
+                        </div>
+                        <button onclick="flagAllLowHealth()" class="px-4 py-2 text-sm bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-2xl font-medium flex items-center gap-x-2">
+                            <i class="fa-solid fa-exclamation-triangle"></i>
+                            <span>Flag all low health</span>
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b text-left text-xs text-slate-500">
+                                    <th class="pb-3 font-medium">Pair</th>
+                                    <th class="pb-3 font-medium">Sessions</th>
+                                    <th class="pb-3 font-medium">Last Session</th>
+                                    <th class="pb-3 font-medium">Health Score</th>
+                                    <th class="pb-3 font-medium">Status</th>
+                                    <th class="pb-3 font-medium text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pairing-health-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACHIEVEMENTS SECTION -->
+            <div id="achievements" class="section">
+                <div class="max-w-3xl">
+                    <h2 class="text-3xl font-semibold tracking-tight mb-2">Your Achievements</h2>
+                    <p class="text-slate-600 mb-8">Badges earned through active participation and great feedback</p>
+                    
+                    <div class="mb-10">
+                        <!-- Progress Banner (inspired by Together app) -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-3xl p-5 mb-6 flex items-start gap-4">
+                            <div class="flex-shrink-0">
+                                <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center border border-blue-200">
+                                    <i class="fa-solid fa-user-graduate text-blue-600 text-2xl"></i>
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div>
+                                        <div class="font-semibold text-blue-800">MENTEE BADGE</div>
+                                        <div class="text-xs text-blue-600">6/10 sessions</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-sm font-medium text-blue-700">You're 4 sessions away!</div>
+                                    </div>
+                                </div>
+                                <div class="w-full bg-blue-200 rounded-full h-2.5 mb-1">
+                                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: 60%"></div>
+                                </div>
+                                <div class="text-xs text-blue-600">Keep up the great work! 🎉</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="font-semibold">Your Badges</div>
+                            <div class="text-sm text-emerald-600 font-medium">8 of 12 unlocked</div>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="mentee-badges"></div>
+
+                        <!-- Quick Stats -->
+                        <div class="mt-6 grid grid-cols-3 gap-4">
+                            <div class="bg-white border border-slate-200 rounded-2xl p-4">
+                                <div class="text-xs text-slate-500">Total Hours</div>
+                                <div class="text-2xl font-bold mt-1">6h 30m</div>
+                                <div class="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                                    <i class="fa-solid fa-arrow-up"></i> <span>↑ 1hr this month</span>
+                                </div>
+                            </div>
+                            <div class="bg-white border border-slate-200 rounded-2xl p-4">
+                                <div class="text-xs text-slate-500">Matches</div>
+                                <div class="text-2xl font-bold mt-1">4</div>
+                                <div class="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                                    <i class="fa-solid fa-arrow-up"></i> <span>↑ 2 this month</span>
+                                </div>
+                            </div>
+                            <div class="bg-white border border-slate-200 rounded-2xl p-4">
+                                <div class="text-xs text-slate-500">Sessions</div>
+                                <div class="text-2xl font-bold mt-1">13</div>
+                                <div class="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                                    <i class="fa-solid fa-arrow-up"></i> <span>↑ 3 this month</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="font-semibold">Mentor Badges (Community)</div>
+                            <div class="text-sm text-slate-500">See how mentors level up</div>
+                        </div>
+                        <div class="bg-white border border-slate-100 rounded-3xl p-6">
+                            <div class="text-sm text-slate-600 mb-4">Top mentors in the platform right now</div>
+                            <div class="space-y-4" id="top-mentors-badges"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NEW: GAMIFICATION SECTION -->
+            <div id="gamification" class="section">
+                <div class="max-w-4xl">
+                    <div class="flex items-end justify-between mb-6">
+                        <div>
+                            <h2 class="text-3xl font-semibold tracking-tight">Gamification &amp; Rewards</h2>
+                            <p class="text-slate-600">Earn points through active participation and redeem for real rewards</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-slate-500">Your Points</div>
+                            <div class="text-5xl font-bold text-indigo-600">1,250</div>
+                            <div class="text-xs text-emerald-600">+180 this month</div>
+                        </div>
+                    </div>
+
+                    <!-- How to Earn -->
+                    <div class="bg-white border border-slate-100 rounded-3xl p-6 mb-6">
+                        <div class="font-semibold mb-4">How to Earn Points</div>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-comments text-emerald-600"></i></div>
+                                <div><div class="font-medium">Complete a session</div><div class="text-xs text-slate-500">+50 points</div></div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 bg-amber-100 rounded-2xl flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-star text-amber-600"></i></div>
+                                <div><div class="font-medium">Give feedback</div><div class="text-xs text-slate-500">+30 points</div></div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 bg-violet-100 rounded-2xl flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-user-plus text-violet-600"></i></div>
+                                <div><div class="font-medium">Refer a colleague</div><div class="text-xs text-slate-500">+100 points (colleague must complete a session)</div></div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 bg-rose-100 rounded-2xl flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-heart text-rose-600"></i></div>
+                                <div><div class="font-medium">Receive positive feedback</div><div class="text-xs text-slate-500">+40 points (as mentor)</div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Milestone Rewards -->
+                    <div class="mb-6">
+                        <div class="font-semibold mb-4">Milestone Rewards (Coupons)</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            
+                            <div class="bg-white border border-slate-200 rounded-3xl p-5">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <div class="font-semibold text-lg">Coupon</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-2xl font-bold text-amber-600">500</div>
+                                        <div class="text-xs text-slate-400">pts</div>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <button onclick="redeemReward(500, 'Coupon')" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-2xl">Redeem</button>
+                                </div>
+                            </div>
+
+                            <div class="bg-white border border-emerald-200 rounded-3xl p-5 ring-2 ring-emerald-500">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <div class="font-semibold text-lg">Lunch Voucher</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-2xl font-bold text-emerald-600">1,000</div>
+                                        <div class="text-xs text-slate-400">pts</div>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <button onclick="redeemReward(1000, 'Lunch Voucher')" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-2xl">Redeem</button>
+                                </div>
+                                <div class="text-center text-xs text-emerald-600 mt-1">You have enough!</div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="text-xs text-slate-400 text-center">Points and rewards are for demonstration purposes only.</div>
+                </div>
+            </div>
+
+            <!-- NEW: PROGRESS TRACKING SECTION -->
+            <div id="progress" class="section">
+                <div class="max-w-4xl">
+                    <h2 class="text-3xl font-semibold tracking-tight mb-2">Progress Tracking</h2>
+                    <p class="text-slate-600 mb-6">Monitor your mentorship journey and goal achievement over multiple sessions</p>
+                    
+                    <div class="bg-white border border-slate-100 rounded-3xl p-6 mb-6">
+                        <div class="font-semibold mb-4">Active Mentorship Progress</div>
+                        <div class="space-y-5" id="progress-list"></div>
+                    </div>
+                    
+                    <div class="text-sm text-slate-500">Progress is calculated based on sessions completed and goals achieved. Update goals in the Matches section.</div>
+                </div>
+            </div>
+
+            <!-- NEW: RESOURCES SECTION -->
+            <div id="resources" class="section">
+                <div class="max-w-5xl">
+                    <h2 class="text-3xl font-semibold tracking-tight mb-2">Resources</h2>
+                    <p class="text-slate-600 mb-8">Helpful handbooks to support your mentorship journey</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
+                        <!-- Colleague Handbook -->
+                        <div class="bg-[#E8F5E9] rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onclick="showHandbookModal('Colleague Handbook', 'Learn about the unique benefits of mentoring in the workplace, offering an empowering approach for both mentors and mentees.')">
+                            <div class="h-48 bg-[#C8E6C9] flex items-center justify-center">
+                                <div class="text-7xl">🤝</div>
+                            </div>
+                            <div class="p-6">
+                                <div class="font-semibold text-xl mb-2">Colleague Handbook</div>
+                                <div class="text-sm text-slate-600">Learn about the unique benefits of mentoring in the workplace and how it creates an empowering environment.</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Mentee Handbook -->
+                        <div class="bg-[#E3F2FD] rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onclick="showHandbookModal('Mentee Handbook', 'Get a sense of what being a mentee means and learn how to make the most of your mentoring relationship.')">
+                            <div class="h-48 bg-[#BBDEFB] flex items-center justify-center">
+                                <div class="text-7xl">🎓</div>
+                            </div>
+                            <div class="p-6">
+                                <div class="font-semibold text-xl mb-2">Mentee Handbook</div>
+                                <div class="text-sm text-slate-600">Understand what it means to be a mentee and how to maximize the value of your mentoring relationship.</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Mentor Handbook -->
+                        <div class="bg-[#FCE4EC] rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onclick="showHandbookModal('Mentor Handbook', 'Break down the different areas of your role as a mentor and the best practices that will help you drive a successful mentoring relationship.')">
+                            <div class="h-48 bg-[#F8BBD9] flex items-center justify-center">
+                                <div class="text-7xl">🧭</div>
+                            </div>
+                            <div class="p-6">
+                                <div class="font-semibold text-xl mb-2">Mentor Handbook</div>
+                                <div class="text-sm text-slate-600">Learn the key responsibilities of being a mentor and best practices for building successful mentoring relationships.</div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Scheduling Choice Modal (Text or Voice) -->
+    <div id="schedule-choice-modal" onclick="if (event.target.id === 'schedule-choice-modal') hideScheduleChoiceModal()" class="hidden fixed inset-0 bg-black/60 z-[110] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-xl">
+            <div class="px-8 py-6">
+                <div class="text-center mb-6">
+                    <div class="mx-auto w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+                        <i class="fa-solid fa-calendar-plus text-indigo-600 text-3xl"></i>
+                    </div>
+                    <div class="font-semibold text-xl">Schedule with <span id="choice-mentor-name"></span></div>
+                    <div class="text-sm text-slate-500 mt-1">How would you like to connect?</div>
+                </div>
+
+                <div class="space-y-3">
+                    <div onclick="chooseScheduleType('text')" class="flex items-center gap-x-4 p-4 border border-slate-200 hover:border-indigo-300 rounded-2xl cursor-pointer transition-colors">
+                        <div class="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-comment-dots text-emerald-600 text-2xl"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold">Text Message</div>
+                            <div class="text-xs text-slate-500">Flexible • Written communication</div>
+                        </div>
+                    </div>
+                    
+                    <div onclick="chooseScheduleType('voice')" class="flex items-center gap-x-4 p-4 border border-slate-200 hover:border-indigo-300 rounded-2xl cursor-pointer transition-colors">
+                        <div class="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-phone text-violet-600 text-2xl"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold">Voice Call</div>
+                            <div class="text-xs text-slate-500">Real-time • 30-60 minutes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Platform Choice Modal -->
+    <div id="voice-platform-modal" onclick="if (event.target.id === 'voice-platform-modal') hideVoicePlatformModal()" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-xl">
+            <div class="px-8 py-6">
+                <div class="text-center mb-6">
+                    <div class="font-semibold text-xl">Choose your platform</div>
+                    <div class="text-sm text-slate-500">Where would you like to have the voice call?</div>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- In-app Voice Call (Primary option) -->
+                    <div onclick="chooseVoicePlatform('inapp')" class="flex items-center gap-x-4 p-4 border border-indigo-300 bg-indigo-50 hover:border-indigo-400 rounded-2xl cursor-pointer transition-colors ring-2 ring-indigo-200">
+                        <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-headset text-white text-3xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold text-indigo-700">In-app Voice Call</div>
+                            <div class="text-xs text-indigo-600">Call directly in this platform</div>
+                        </div>
+                        <div class="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-medium">Recommended</div>
+                    </div>
+                    
+                    <div onclick="chooseVoicePlatform('teams')" class="flex items-center gap-x-4 p-4 border border-slate-200 hover:border-indigo-300 rounded-2xl cursor-pointer transition-colors">
+                        <div class="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <i class="fa-brands fa-microsoft text-blue-600 text-3xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold">Microsoft Teams</div>
+                            <div class="text-xs text-slate-500">Enterprise • Screen sharing</div>
+                        </div>
+                    </div>
+                    
+                    <div onclick="chooseVoicePlatform('wecom')" class="flex items-center gap-x-4 p-4 border border-slate-200 hover:border-indigo-300 rounded-2xl cursor-pointer transition-colors">
+                        <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-comment-dots text-green-600 text-3xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-semibold">WeCom (WeChat Work)</div>
+                            <div class="text-xs text-slate-500">Fast &amp; reliable</div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Time Slot Selection Modal -->
+    <div id="time-slot-modal" onclick="if (event.target.id === 'time-slot-modal') hideTimeSlotModal()" class="hidden fixed inset-0 bg-black/60 z-[130] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-xl">
+            <div class="px-6 py-5 border-b flex items-center justify-between">
+                <div>
+                    <div class="font-semibold text-xl">Choose time slot</div>
+                    <div class="text-xs text-slate-500" id="slot-mentor-name"></div>
+                </div>
+                <button onclick="hideTimeSlotModal()" class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            
+            <div class="p-6">
+                <div class="text-sm font-medium mb-3">Available slots</div>
+                <div id="time-slots-list" class="space-y-2 max-h-80 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Success Modal -->
+    <div id="schedule-success-modal" onclick="if (event.target.id === 'schedule-success-modal') hideSuccessModal()" class="hidden fixed inset-0 bg-black/60 z-[140] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-xl text-center p-8">
+            <div class="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-5">
+                <i class="fa-solid fa-check-circle text-emerald-600 text-4xl"></i>
+            </div>
+            <div class="font-semibold text-2xl mb-2">Schedule completed!</div>
+            <div class="text-slate-600 mb-6">A reminder has been sent to your Outlook email.</div>
+            
+            <button onclick="hideSuccessModal()" class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-3xl">Done</button>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chat-modal" onclick="if (event.target.id === 'chat-modal') hideChatModal()" class="hidden fixed inset-0 bg-black/60 z-[110] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-[820px] mx-4 rounded-3xl overflow-hidden shadow-2xl flex h-[520px]">
+            
+            <!-- Main Chat Area -->
+            <div class="flex-1 flex flex-col">
+                <div class="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+                    <div class="flex items-center gap-x-3">
+                        <img id="chat-avatar" class="w-9 h-9 rounded-2xl border border-white/30" alt="">
+                        <div>
+                            <div id="chat-name" class="font-semibold"></div>
+                            <div class="text-xs text-indigo-200">Online • Usually responds in &lt; 2 min</div>
+                        </div>
+                    </div>
+                    <button onclick="endChat()" class="px-4 py-1.5 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-2xl transition-colors">End</button>
+                </div>
+                
+                <!-- Agenda Bar -->
+                <div id="chat-agenda-bar" class="hidden px-4 py-2.5 bg-amber-50 border-b flex items-center gap-3 text-sm">
+                    <div class="font-semibold text-amber-700 flex-shrink-0">Agenda:</div>
+                    <div id="chat-agenda-text" class="text-amber-800 flex-1 font-medium"></div>
+                </div>
+                
+                <div id="chat-messages" class="flex-1 p-5 overflow-y-auto bg-slate-50 space-y-3 text-sm"></div>
+                
+                <div class="p-4 border-t bg-white">
+                    <div class="flex gap-x-2">
+                        <input id="chat-input" type="text" placeholder="Type your message..." class="flex-1 border border-slate-200 rounded-3xl px-5 py-3 text-sm focus:outline-none focus:border-indigo-300" onkeypress="if (event.key === 'Enter') sendMessage()">
+                        <button onclick="sendMessage()" class="px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl font-medium text-sm transition-colors">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conversation Start Kit Side Panel -->
+            <div id="start-kit-panel" class="hidden w-80 border-l bg-white flex flex-col">
+                
+                <!-- Header -->
+                <div class="px-5 pt-5 pb-3 border-b">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-sm">
+                            <i class="fa-solid fa-lightbulb text-white text-lg"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-lg tracking-tight">Conversation Starter</div>
+                            <div class="text-xs text-slate-500 -mt-0.5">Tap to use in chat</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Prompts List -->
+                <div class="flex-1 p-4 overflow-y-auto" id="start-kit-prompts">
+                    <!-- Populated by JS -->
+                </div>
+                
+                <div class="px-4 py-3 border-t bg-slate-50 text-center">
+                    <div class="text-[10px] text-slate-400">💡 These prompts help start meaningful conversations</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Call Modal -->
+    <div id="voice-call-modal" onclick="if (event.target.id === 'voice-call-modal') endVoiceCall()" class="hidden fixed inset-0 bg-black/70 z-[130] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="call-interface w-full max-w-xl mx-4 rounded-3xl overflow-hidden text-white shadow-2xl scale-[1.35]">
+            <div class="px-8 pt-8 pb-4 text-center">
+                <div class="flex justify-center mb-4">
+                    <img id="call-avatar" class="w-24 h-24 rounded-full border-4 border-white/30" alt="">
+                </div>
+                <div id="call-name" class="text-2xl font-semibold"></div>
+                
+                <div class="my-8">
+                    <div id="call-timer" class="text-5xl font-mono tracking-[4px]">00:00</div>
+                </div>
+                
+                <div class="flex justify-center gap-x-4">
+                    <button onclick="muteCall()" class="w-14 h-14 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center"><i class="fa-solid fa-microphone text-xl"></i></button>
+                    <button onclick="endVoiceCall()" class="w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center"><i class="fa-solid fa-phone-slash text-xl"></i></button>
+                </div>
+            </div>
+            
+            <div class="px-8 py-4 bg-black/30 flex justify-center gap-x-4 text-xs">
+                <div onclick="switchCallPlatform()" class="cursor-pointer flex items-center gap-x-1 hover:text-emerald-400"><i class="fa-brands fa-microsoft"></i><span>Teams</span></div>
+                <div onclick="switchCallPlatform()" class="cursor-pointer flex items-center gap-x-1 hover:text-emerald-400"><i class="fa-solid fa-comment-dots"></i><span>WeCom</span></div>
+            </div>
+            
+            <!-- Voice Call - Conversation Starters -->
+            <div class="px-5 pb-4 bg-black/20 text-white">
+                <div class="font-medium mb-2 flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                    <span>Quick Starters</span>
+                </div>
+                <div class="max-h-28 overflow-y-auto pr-2 text-sm text-white/80 space-y-2 custom-scroll">
+                    <div onclick="useVoiceStarter(this)" class="cursor-pointer hover:text-white py-1">"What are your top goals this year?"</div>
+                    <div onclick="useVoiceStarter(this)" class="cursor-pointer hover:text-white py-1">"What's the biggest challenge you're facing right now?"</div>
+                    <div onclick="useVoiceStarter(this)" class="cursor-pointer hover:text-white py-1">"How can I best support you in the next 3 months?"</div>
+                    <div onclick="useVoiceStarter(this)" class="cursor-pointer hover:text-white py-1">"What skill do you want to improve most?"</div>
+                    <div onclick="useVoiceStarter(this)" class="cursor-pointer hover:text-white py-1">"How do you handle team conflicts?"</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post-Chat Feedback Modal -->
+    <div id="feedback-modal" onclick="if (event.target.id === 'feedback-modal') hideFeedbackModal()" class="hidden fixed inset-0 bg-black/60 z-[120] flex items-center justify-center">
+        <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-xl">
+            <div class="px-8 pt-8 pb-6">
+                <div class="text-center mb-6">
+                    <div class="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa-solid fa-check-circle text-emerald-600 text-4xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-semibold">Session Complete!</h3>
+                    <p class="text-slate-500 mt-1">Thank you for chatting with <span id="feedback-mentor-name" class="font-medium"></span></p>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="text-sm font-medium text-center mb-3">How would you rate this session?</div>
+                    <div class="flex justify-center gap-x-2" id="star-rating">
+                        <i class="fa-solid fa-star star text-3xl text-slate-300" data-value="1" onclick="setRating(1)"></i>
+                        <i class="fa-solid fa-star star text-3xl text-slate-300" data-value="2" onclick="setRating(2)"></i>
+                        <i class="fa-solid fa-star star text-3xl text-slate-300" data-value="3" onclick="setRating(3)"></i>
+                        <i class="fa-solid fa-star star text-3xl text-slate-300" data-value="4" onclick="setRating(4)"></i>
+                        <i class="fa-solid fa-star star text-3xl text-slate-300" data-value="5" onclick="setRating(5)"></i>
+                    </div>
+                    <div id="rating-text" class="text-center text-xs mt-2 text-slate-400">Tap a star to rate</div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-600 block mb-1.5">Was the mentor knowledgeable?</label>
+                        <div class="flex gap-x-2">
+                            <label class="flex-1"><input type="radio" name="knowledge" value="Yes" class="peer hidden"><span class="block text-center py-2 border border-slate-200 rounded-2xl peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 text-sm cursor-pointer">Yes</span></label>
+                            <label class="flex-1"><input type="radio" name="knowledge" value="Somewhat" class="peer hidden" checked><span class="block text-center py-2 border border-slate-200 rounded-2xl peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 text-sm cursor-pointer">Somewhat</span></label>
+                            <label class="flex-1"><input type="radio" name="knowledge" value="No" class="peer hidden"><span class="block text-center py-2 border border-slate-200 rounded-2xl peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 text-sm cursor-pointer">No</span></label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="text-xs font-medium text-slate-600 block mb-1.5">Did you achieve your goal today?</label>
+                        <div class="flex gap-x-2">
+                            <label class="flex-1"><input type="radio" name="goal" value="Yes" class="peer hidden" checked><span class="block text-center py-2 border border-slate-200 rounded-2xl peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 text-sm cursor-pointer">Yes</span></label>
+                            <label class="flex-1"><input type="radio" name="goal" value="Partially" class="peer hidden"><span class="block text-center py-2 border border-slate-200 rounded-2xl peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 text-sm cursor-pointer">Partially</span></label>
+                            <label class="flex-1"><input type="radio" name="goal" value="No" class="peer hidden"><span class="block text-center py-2 border border-slate-200 rounded-2xl peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 text-sm cursor-pointer">No</span></label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="text-xs font-medium text-slate-600 block mb-1.5">Any feedback or suggestions?</label>
+                        <textarea id="feedback-text" rows="2" placeholder="The session was very insightful..." class="w-full border border-slate-200 rounded-2xl p-3 text-sm focus:outline-none focus:border-indigo-300"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="px-8 py-5 border-t flex gap-x-3 bg-slate-50">
+                <button onclick="submitFeedback()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-3xl transition-colors">Submit Feedback</button>
+                <button onclick="hideFeedbackModal()" class="px-6 py-3 text-sm text-slate-600 hover:text-slate-800 font-medium">Skip for now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[200]"></div>
+
+    <script>
+        function initializeTailwind() {}
+
+        // Updated Mentors with Simple English Names + Leadership Badges + Cartoon Avatars
+        let mentors = [
+            {
+                id: 0,
+                name: "David",
+                title: "Leadership Coach",
+                avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=DavidKim",
+                rating: 4.95,
+                reviews: 187,
+                sessions: 124,
+                expertise: ["Executive Leadership", "Team Development", "Strategic Thinking"],
+                bio: "Helps leaders build high-performing teams and develop their leadership presence.",
+                badges: ["Top Mentor", "Leadership Expert", "100+ Sessions", "Strategic Mentor"],
+                matchScore: 94,
+                category: "Leadership",
+                availability: [
+                    { date: "Today", time: "3:00 PM", full: "Today 3:00 PM" },
+                    { date: "Tomorrow", time: "10:00 AM", full: "Tomorrow 10:00 AM" },
+                    { date: "Feb 3", time: "2:30 PM", full: "Feb 3, 2:30 PM" }
+                ],
+                scheduledType: null,
+                scheduledPlatform: null
+            },
+            {
+                id: 1,
+                name: "Sarah",
+                title: "Executive Guide",
+                avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=SarahPatel",
+                rating: 4.82,
+                reviews: 93,
+                sessions: 67,
+                expertise: ["Career Leadership", "Executive Presence", "Influence Skills"],
+                bio: "Specializes in helping professionals step into senior leadership roles.",
+                badges: ["Great Communicator", "Rising Star", "Leadership Coach"],
+                matchScore: 89,
+                category: "Leadership",
+                availability: [
+                    { date: "Today", time: "4:30 PM", full: "Today 4:30 PM" },
+                    { date: "Tomorrow", time: "11:00 AM", full: "Tomorrow 11:00 AM" }
+                ],
+                scheduledType: null,
+                scheduledPlatform: null
+            },
+            {
+                id: 2,
+                name: "Michael",
+                title: "Team Builder",
+                avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=MichaelChen",
+                rating: 4.78,
+                reviews: 54,
+                sessions: 41,
+                expertise: ["Team Leadership", "Conflict Resolution", "High-Performance Teams"],
+                bio: "Former tech executive turned leadership coach. Passionate about building cohesive teams.",
+                badges: ["AI Pioneer", "Team Leadership Expert"],
+                matchScore: 96,
+                category: "Team",
+                availability: [
+                    { date: "Tomorrow", time: "9:00 AM", full: "Tomorrow 9:00 AM" },
+                    { date: "Feb 3", time: "1:00 PM", full: "Feb 3, 1:00 PM" }
+                ],
+                scheduledType: null,
+                scheduledPlatform: null
+            },
+            {
+                id: 3,
+                name: "Emily",
+                title: "Strategic Mentor",
+                avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=EmilyRodriguez",
+                rating: 4.91,
+                reviews: 112,
+                sessions: 89,
+                expertise: ["Strategic Leadership", "Vision Setting", "Organizational Growth"],
+                bio: "Helps leaders develop long-term vision and execute strategy effectively.",
+                badges: ["Top Mentor", "5-Star Rated", "Strategic Leader"],
+                matchScore: 91,
+                category: "Strategy",
+                availability: [
+                    { date: "Today", time: "5:00 PM", full: "Today 5:00 PM" },
+                    { date: "Feb 4", time: "10:30 AM", full: "Feb 4, 10:30 AM" }
+                ],
+                scheduledType: null,
+                scheduledPlatform: null
+            },
+            {
+                id: 4,
+                name: "James",
+                title: "Career Leadership Coach",
+                avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=JamesThompson",
+                rating: 4.65,
+                reviews: 38,
+                sessions: 29,
+                expertise: ["Career Transitions", "Leadership Development", "Personal Branding"],
+                bio: "2x founder and leadership advisor. Helps professionals accelerate their leadership journey.",
+                badges: ["Rising Star", "Leadership Coach"],
+                matchScore: 82,
+                category: "Career",
+                availability: [
+                    { date: "Tomorrow", time: "2:00 PM", full: "Tomorrow 2:00 PM" },
+                    { date: "Feb 5", time: "11:30 AM", full: "Feb 5, 11:30 AM" }
+                ],
+                scheduledType: null,
+                scheduledPlatform: null
+            }
+        ]
+
+        let currentMentorId = null
+        let currentChatMentorId = null
+        let currentRating = 0
+        let userBadges = ["Active Mentee", "Quick Learner", "Goal Crusher", "Feedback Champion", "Session Veteran", "Community Builder", "Lifelong Learner", "Super Connector"]
+        let bookedSessions = []
+        let callInterval = null
+        let callSeconds = 0
+        let pendingSchedule = null
+
+        function renderMentorCards(filteredMentors = mentors) {
+            const grid = document.getElementById('mentor-grid')
+            grid.innerHTML = ''
+            
+            filteredMentors.forEach(mentor => {
+                const badgesHTML = mentor.badges.map(b => getBadgeHTML(b, 'small')).join('')
+                
+                // Only Schedule button in Discover
+                let actionButton = `<button onclick="event.stopImmediatePropagation(); startScheduleFromDiscover(${mentor.id})" class="w-full py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl transition-colors">Schedule</button>`
+                
+                // If already scheduled, show Join button
+                if (mentor.scheduledType) {
+                    actionButton = `<button onclick="event.stopImmediatePropagation(); joinScheduledSession(${mentor.id})" class="w-full py-2.5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl transition-colors">Join</button>`
+                }
+                
+                const cardHTML = `
+                    <div onclick="showMentorProfile(${mentor.id})" class="mentor-card bg-white border border-slate-100 rounded-3xl p-6 cursor-pointer hover:border-indigo-200 group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-x-4">
+                                <img src="${mentor.avatar}" class="w-14 h-14 rounded-2xl object-cover ring-2 ring-white shadow-sm" alt="${mentor.name}">
+                                <div>
+                                    <div class="font-semibold text-lg group-hover:text-indigo-600 transition-colors">${mentor.name}</div>
+                                    <div class="text-sm text-slate-500">${mentor.title}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="flex items-center justify-end text-amber-400"><i class="fa-solid fa-star"></i><span class="ml-1 font-semibold text-slate-700">${mentor.rating}</span></div>
+                                <div class="text-[10px] text-slate-400">${mentor.reviews} reviews</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-5 flex flex-wrap gap-1.5">${badgesHTML}</div>
+                        
+                        <div class="mt-5 pt-4 border-t flex items-center justify-between text-sm">
+                            <div><span class="font-semibold text-emerald-600">${mentor.sessions}</span> <span class="text-slate-400">sessions</span></div>
+                            <div class="flex items-center gap-x-1 text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-2xl font-medium"><i class="fa-solid fa-bolt"></i><span>${mentor.matchScore}% match</span></div>
+                        </div>
+                        
+                        <div class="mt-3 text-[10px] text-emerald-600 flex items-center gap-1">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>Outside your reporting line • Psychologically safe</span>
+                        </div>
+                        
+                        <div class="mt-4">
+                            ${actionButton}
+                        </div>
+                    </div>
+                `
+                grid.innerHTML += cardHTML
+            })
+        }
+
+        function filterMentors(category) {
+            const filtered = category ? mentors.filter(m => m.category === category) : mentors
+            renderMentorCards(filtered)
+        }
+
+        // NEW: Start scheduling from Discover page
+        function startScheduleFromDiscover(id) {
+            currentMentorId = id
+            const mentor = mentors.find(m => m.id === id)
+            document.getElementById('choice-mentor-name').innerText = mentor.name
+            document.getElementById('schedule-choice-modal').classList.remove('hidden')
+            document.getElementById('schedule-choice-modal').classList.add('flex')
+        }
+
+        function hideScheduleChoiceModal() {
+            const modal = document.getElementById('schedule-choice-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+        }
+
+        function chooseScheduleType(type) {
+            hideScheduleChoiceModal()
+            pendingSchedule = { mentorId: currentMentorId, type: type, platform: null, useStartKit: false }
+            
+            // Ask if user wants to use Conversation Start Kit
+            const useKit = confirm("Would you like to use the Conversation Start Kit?\n\nThis will provide helpful prompts during your session.")
+            pendingSchedule.useStartKit = useKit
+            
+            if (type === 'voice') {
+                document.getElementById('voice-platform-modal').classList.remove('hidden')
+                document.getElementById('voice-platform-modal').classList.add('flex')
+            } else {
+                // Text → directly to time slots
+                showTimeSlotModal(currentMentorId)
+            }
+        }
+
+        function chooseVoicePlatform(platform) {
+            hideVoicePlatformModal()
+            pendingSchedule.platform = platform
+            showTimeSlotModal(pendingSchedule.mentorId)
+        }
+
+        function hideVoicePlatformModal() {
+            const modal = document.getElementById('voice-platform-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+        }
+
+        function showTimeSlotModal(mentorId) {
+            const mentor = mentors.find(m => m.id === mentorId)
+            document.getElementById('slot-mentor-name').innerText = mentor.name
+            
+            const slotsContainer = document.getElementById('time-slots-list')
+            slotsContainer.innerHTML = ''
+            
+            // All time slots in June 2026 and after (no February)
+            const expandedSlots = [
+                { date: "June 10", time: "3:00 PM", full: "June 10, 3:00 PM" },
+                { date: "June 17", time: "10:00 AM", full: "June 17, 10:00 AM" },
+                { date: "June 24", time: "2:30 PM", full: "June 24, 2:30 PM" },
+                { date: "July 8", time: "11:00 AM", full: "July 8, 11:00 AM" },
+                { date: "July 15", time: "4:00 PM", full: "July 15, 4:00 PM" },
+                { date: "July 22", time: "1:00 PM", full: "July 22, 1:00 PM" }
+            ];
+            
+            expandedSlots.forEach((slot) => {
+                const slotEl = document.createElement('div')
+                slotEl.className = `time-slot flex justify-between items-center px-4 py-3 border border-slate-200 rounded-2xl cursor-pointer hover:border-indigo-300`
+                slotEl.innerHTML = `
+                    <div>
+                        <div class="font-medium">${slot.date}</div>
+                        <div class="text-sm text-slate-500">${slot.time}</div>
+                    </div>
+                    <div class="text-emerald-600 text-xs font-medium">Available</div>
+                `
+                slotEl.onclick = () => showDurationSelectionModal(mentorId, slot)
+                slotsContainer.appendChild(slotEl)
+            })
+            
+            document.getElementById('time-slot-modal').classList.remove('hidden')
+            document.getElementById('time-slot-modal').classList.add('flex')
+        }
+
+        function showDurationSelectionModal(mentorId, slot) {
+            hideTimeSlotModal()
+            
+            const modal = document.createElement('div')
+            modal.className = 'fixed inset-0 bg-black/60 z-[140] flex items-center justify-center'
+            modal.innerHTML = `
+                <div onclick="event.target.remove()" class="absolute inset-0"></div>
+                <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-sm mx-4 rounded-3xl overflow-hidden shadow-2xl">
+                    <div class="px-6 py-5 border-b flex items-center justify-between">
+                        <div>
+                            <div class="font-semibold text-xl">Select Duration</div>
+                            <div class="text-sm text-slate-500">How long would you like the session to be?</div>
+                        </div>
+                        <button onclick="goBackToTimeSlots(${mentorId}, this)" class="px-4 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-2xl font-medium">Back</button>
+                    </div>
+                    
+                    <div class="p-4 max-h-96 overflow-y-auto" id="duration-options">
+                        <!-- Populated by JS (single column) -->
+                    </div>
+                </div>
+            `
+            document.body.appendChild(modal)
+            
+            // Populate duration options
+            const container = modal.querySelector('#duration-options')
+            const durations = [
+                "15 mins", "30 mins", "45 mins", "1 hour",
+                "1h 15m", "1h 30m", "1h 45m", "2 hours"
+            ]
+            
+            durations.forEach(duration => {
+                const btn = document.createElement('div')
+                btn.className = `px-5 py-3.5 border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-2xl cursor-pointer transition-all text-sm font-medium flex items-center justify-between`
+                btn.innerHTML = `
+                    <span>${duration}</span>
+                    <i class="fa-solid fa-chevron-right text-indigo-400 text-xs"></i>
+                `
+                btn.onclick = () => {
+                    modal.remove()
+                    proceedWithBooking(mentorId, slot, duration)
+                }
+                container.appendChild(btn)
+            })
+        }
+
+        function proceedWithBooking(mentorId, slot, duration) {
+            const mentor = mentors.find(m => m.id === mentorId)
+            
+            mentor.scheduledType = pendingSchedule.type
+            mentor.scheduledPlatform = pendingSchedule.platform
+            pendingSchedule.slot = slot
+            pendingSchedule.mentorId = mentorId
+            pendingSchedule.duration = duration
+            
+            // Go to Goal Setting
+            showGoalSettingModal(mentorId, slot)
+        }
+
+        function goBackToDurationSelection(mentorId, slotFull, element) {
+            const currentModal = element.closest('.fixed')
+            currentModal.remove()
+            
+            // Re-open duration selection
+            const slot = { full: slotFull }
+            showDurationSelectionModal(mentorId, slot)
+        }
+
+        function goBackToTimeSlots(mentorId, element) {
+            const currentModal = element.closest('.fixed')
+            currentModal.remove()
+            
+            // Re-open time slot selection
+            showTimeSlotModal(mentorId)
+        }
+
+        function hideTimeSlotModal() {
+            const modal = document.getElementById('time-slot-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+        }
+
+        function bookTimeSlot(mentorId, slot) {
+            const mentor = mentors.find(m => m.id === mentorId)
+            
+            // Save scheduling info
+            mentor.scheduledType = pendingSchedule.type
+            mentor.scheduledPlatform = pendingSchedule.platform
+            pendingSchedule.slot = slot;
+            pendingSchedule.mentorId = mentorId;
+            
+            hideTimeSlotModal()
+            
+            // Show Goal Setting Modal
+            showGoalSettingModal(mentorId, slot)
+        }
+
+        function showGoalSettingModal(mentorId, slot) {
+            const modal = document.createElement('div')
+            modal.className = 'fixed inset-0 bg-black/60 z-[150] flex items-center justify-center'
+            modal.innerHTML = `
+                <div onclick="event.target.remove()" class="absolute inset-0"></div>
+                <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-2xl">
+                    <div class="px-6 py-5 border-b">
+                        <div class="font-semibold text-xl">Set Your Goals</div>
+                        <div class="text-sm text-slate-500">What do you want to achieve with this mentor?</div>
+                    </div>
+                    
+                    <div class="p-6">
+                        <div id="goals-list" class="space-y-3 mb-4">
+                            <!-- Goals will be added here -->
+                        </div>
+                        
+                        <button onclick="addGoalRow(this)" class="w-full py-3 border border-dashed border-slate-300 hover:border-indigo-400 text-indigo-600 rounded-2xl flex items-center justify-center gap-2 text-sm font-medium">
+                            <i class="fa-solid fa-plus"></i> Add another goal
+                        </button>
+                    </div>
+                    
+                    <div class="px-6 py-4 border-t bg-slate-50 flex gap-3">
+                        <button onclick="goBackToDurationSelection(${mentorId}, '${slot.full}', this)" class="flex-1 py-3 text-sm font-medium border border-slate-300 rounded-2xl">Back</button>
+                        <button onclick="confirmGoals(this, ${mentorId}, '${slot.full}')" class="flex-1 py-3 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl">Confirm & Book</button>
+                    </div>
+                </div>
+            `
+            document.body.appendChild(modal)
+            
+            // Add first goal row by default
+            setTimeout(() => {
+                const goalsList = modal.querySelector('#goals-list')
+                addGoalRowToList(goalsList)
+            }, 100)
+        }
+
+        function addGoalRowToList(container) {
+            const row = document.createElement('div')
+            row.className = 'flex gap-2 items-center'
+            row.innerHTML = `
+                <input type="text" placeholder="e.g. Improve public speaking skills" class="flex-1 border border-slate-300 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400">
+                <button onclick="this.parentElement.remove()" class="w-9 h-9 flex items-center justify-center text-rose-500 hover:bg-rose-50 rounded-2xl">×</button>
+            `
+            container.appendChild(row)
+        }
+
+        function addGoalRow(btn) {
+            const container = btn.parentElement.querySelector('#goals-list')
+            addGoalRowToList(container)
+        }
+
+        function confirmGoals(btn, mentorId, slotFull) {
+            const modal = btn.closest('.fixed')
+            const inputs = modal.querySelectorAll('#goals-list input')
+            const goals = []
+            
+            inputs.forEach(input => {
+                if (input.value.trim()) goals.push(input.value.trim())
+            })
+            
+            if (goals.length === 0) {
+                alert("Please add at least one goal")
+                return
+            }
+            
+            const mentor = mentors.find(m => m.id === mentorId)
+            const totalSessions = goals.length + 2
+            
+            // Add to booked sessions
+            bookedSessions.push({
+                mentorId: mentorId,
+                mentorName: mentor.name,
+                avatar: mentor.avatar,
+                dateTime: slotFull,
+                commType: pendingSchedule.type,
+                platform: pendingSchedule.platform,
+                duration: pendingSchedule.duration || "30 mins",
+                useStartKit: pendingSchedule.useStartKit || false,
+                agenda: goals.join(" • "),
+                goals: goals,
+                totalSessions: totalSessions,
+                status: "Confirmed"
+            })
+            
+            modal.remove()
+            
+            // Show success
+            document.getElementById('schedule-success-modal').classList.remove('hidden')
+            document.getElementById('schedule-success-modal').classList.add('flex')
+            
+            // Refresh UI
+            renderMentorCards()
+            updateMatchesList()
+            updateUpcomingSessions()
+            updateMatchesCount()
+            
+            pendingSchedule = null
+        }
+
+        function hideSuccessModal() {
+            const modal = document.getElementById('schedule-success-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+        }
+
+        // NEW: Join scheduled session
+        function joinScheduledSession(mentorId) {
+            const mentor = mentors.find(m => m.id === mentorId)
+            if (!mentor || !mentor.scheduledType) return
+            
+            currentChatMentorId = mentorId
+            
+            if (mentor.scheduledType === 'text') {
+                startChat(mentorId)
+            } else {
+                // Voice call
+                startVoiceCallFromJoin(mentorId)
+            }
+        }
+
+        function startVoiceCallFromJoin(mentorId) {
+            const mentor = mentors.find(m => m.id === mentorId)
+            if (!mentor) return
+            hideChatModal()
+            
+            const avatarEl = document.getElementById('call-avatar')
+            const nameEl = document.getElementById('call-name')
+            const platformEl = document.getElementById('call-platform')
+            const timerEl = document.getElementById('call-timer')
+            const modal = document.getElementById('voice-call-modal')
+            
+            if (avatarEl) avatarEl.src = mentor.avatar
+            if (nameEl) nameEl.innerText = mentor.name
+            if (platformEl) {
+                platformEl.innerText = mentor.scheduledPlatform === 'wecom' ? 'Connected via WeCom' : 'Connected via Microsoft Teams'
+            }
+            
+            if (modal) {
+                modal.classList.remove('hidden')
+                modal.classList.add('flex')
+            }
+            
+            callSeconds = 0
+            if (timerEl) timerEl.innerText = '00:00'
+            if (callInterval) clearInterval(callInterval)
+            callInterval = setInterval(() => {
+                callSeconds++
+                const min = String(Math.floor(callSeconds / 60)).padStart(2, '0')
+                const sec = String(callSeconds % 60).padStart(2, '0')
+                if (timerEl) timerEl.innerText = `${min}:${sec}`
+            }, 1000)
+            
+            showToast(`Voice call started with ${mentor.name}`, 'default')
+        }
+
+        function getBadgeHTML(badgeName, size = 'normal') {
+            const badgeTiers = {
+                "Top Mentor": { icon: "fa-crown", tier: "gold", label: "Top Mentor" },
+                "5-Star Rated": { icon: "fa-star", tier: "gold", label: "5★ Rated" },
+                "100+ Sessions": { icon: "fa-tachometer-alt", tier: "platinum", label: "Century Mentor" },
+                "Leadership Expert": { icon: "fa-user-tie", tier: "gold", label: "Leadership Expert" },
+                "Strategic Mentor": { icon: "fa-chess-king", tier: "gold", label: "Strategic Mentor" },
+                "Team Leadership Expert": { icon: "fa-users", tier: "silver", label: "Team Leadership" },
+                "Leadership Coach": { icon: "fa-chalkboard-teacher", tier: "silver", label: "Leadership Coach" },
+                "Great Communicator": { icon: "fa-comments", tier: "normal", label: "Great Communicator" },
+                "Rising Star": { icon: "fa-rocket", tier: "silver", label: "Rising Star" },
+                "Executive Guide": { icon: "fa-compass", tier: "normal", label: "Executive Guide" }
+            }
+            const info = badgeTiers[badgeName] || { icon: "fa-medal", tier: "normal", label: badgeName }
+            let classes = "inline-flex items-center gap-x-1.5 px-3 py-1 text-xs font-medium rounded-2xl "
+            if (info.tier === "gold") classes += "fancy-badge gold text-white shadow-md"
+            else if (info.tier === "platinum") classes += "fancy-badge platinum text-white shadow-md"
+            else if (info.tier === "silver") classes += "bg-slate-200 text-slate-700 border border-slate-300"
+            else classes += "bg-indigo-100 text-indigo-700"
+            if (size === 'small') classes = classes.replace('px-3 py-1', 'px-2 py-0.5 text-[10px]')
+            return `<span class="${classes}"><i class="fa-solid ${info.icon}"></i> <span>${info.label}</span></span>`
+        }
+
+        function showMentorProfile(id) {
+            const mentor = mentors.find(m => m.id === id)
+            if (!mentor) return
+            currentMentorId = id
+            
+            const avatarEl = document.getElementById('modal-avatar')
+            const nameEl = document.getElementById('modal-name')
+            const titleEl = document.getElementById('modal-title')
+            const ratingEl = document.getElementById('modal-rating')
+            const reviewsEl = document.getElementById('modal-reviews')
+            const sessionsEl = document.getElementById('modal-sessions')
+            const bioEl = document.getElementById('modal-bio')
+            const badgeCountEl = document.getElementById('modal-badge-count')
+            const badgesEl = document.getElementById('modal-badges')
+            const expertiseEl = document.getElementById('modal-expertise')
+            const modal = document.getElementById('profile-modal')
+            
+            if (avatarEl) avatarEl.src = mentor.avatar
+            if (nameEl) nameEl.innerText = mentor.name
+            if (titleEl) titleEl.innerText = mentor.title
+            if (ratingEl) ratingEl.innerText = mentor.rating
+            if (reviewsEl) reviewsEl.innerText = `${mentor.reviews} reviews`
+            if (sessionsEl) sessionsEl.innerText = mentor.sessions
+            if (bioEl) bioEl.innerText = mentor.bio
+            if (badgeCountEl) badgeCountEl.innerText = `${mentor.badges.length} badges`
+            if (badgesEl) badgesEl.innerHTML = mentor.badges.map(b => getBadgeHTML(b)).join('')
+            if (expertiseEl) expertiseEl.innerHTML = mentor.expertise.map(e => `<span class="px-3 py-1 bg-slate-100 text-slate-600 text-xs rounded-2xl">${e}</span>`).join('')
+            
+            if (modal) {
+                modal.classList.remove('hidden')
+                modal.classList.add('flex')
+            }
+        }
+
+        function hideProfileModal() {
+            const modal = document.getElementById('profile-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+        }
+
+        function startChat(mentorId) {
+            const mentor = mentors.find(m => m.id === mentorId)
+            if (!mentor) return
+            currentChatMentorId = mentorId
+            
+            // Find if this session uses Conversation Start Kit
+            const booked = bookedSessions.find(b => b.mentorId === mentorId)
+            const useKit = booked ? booked.useStartKit : false
+            
+            // Safe element access with null checks
+            const avatarEl = document.getElementById('chat-avatar')
+            const nameEl = document.getElementById('chat-name')
+            const messagesContainer = document.getElementById('chat-messages')
+            const sidePanel = document.getElementById('start-kit-panel')
+            
+            if (avatarEl) avatarEl.src = mentor.avatar
+            if (nameEl) nameEl.innerText = mentor.name
+            if (messagesContainer) {
+                messagesContainer.innerHTML = `<div class="chat-bubble mentor"><div>Hi! Thanks for reaching out. How can I help you today?</div></div>`
+            }
+            
+            // Show Agenda if available
+            const agendaBar = document.getElementById('chat-agenda-bar')
+            const agendaText = document.getElementById('chat-agenda-text')
+            if (booked && booked.agenda && agendaBar && agendaText) {
+                agendaBar.classList.remove('hidden')
+                agendaText.innerText = booked.agenda
+            } else if (agendaBar) {
+                agendaBar.classList.add('hidden')
+            }
+            
+            // Always show Conversation Start Kit side panel for now (demo)
+            if (sidePanel) {
+                sidePanel.classList.remove('hidden')
+                sidePanel.classList.add('flex')
+                loadConversationStartKit(mentorId)
+            }
+            
+            const chatModal = document.getElementById('chat-modal')
+            if (chatModal) {
+                chatModal.classList.remove('hidden')
+                chatModal.classList.add('flex')
+            }
+            
+            setTimeout(() => {
+                const input = document.getElementById('chat-input')
+                if (input) input.focus()
+            }, 300)
+        }
+
+        function hideChatModal() {
+            document.getElementById('chat-modal').classList.remove('flex')
+            document.getElementById('chat-modal').classList.add('hidden')
+            // Hide start kit panel when closing chat
+            const sidePanel = document.getElementById('start-kit-panel')
+            sidePanel.classList.add('hidden')
+            sidePanel.classList.remove('flex')
+        }
+
+        function loadConversationStartKit(mentorId) {
+            const container = document.getElementById('start-kit-prompts')
+            container.innerHTML = ''
+            
+            const prompts = [
+                { topic: "Career Goals", text: "What are your top 3 career goals for the next 12 months?" },
+                { topic: "Leadership", text: "Can you share a recent leadership challenge you faced?" },
+                { topic: "Team Dynamics", text: "How do you currently handle team conflicts?" },
+                { topic: "Work-Life Balance", text: "What strategies are you using to maintain work-life balance?" },
+                { topic: "Skill Development", text: "Which skill do you want to improve the most this year?" }
+            ]
+            
+            prompts.forEach((prompt, index) => {
+                const card = document.createElement('div')
+                card.className = 'group bg-slate-50 border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 cursor-pointer transition-all hover:shadow-sm active:scale-[0.985]'
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-6 h-6 bg-white rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 border border-slate-200 group-hover:border-indigo-300">
+                            <i class="fa-solid fa-comment-dots text-indigo-500 text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-semibold text-indigo-600 mb-1 tracking-wide">${prompt.topic}</div>
+                            <div class="text-sm leading-snug text-slate-700 pr-1">${prompt.text}</div>
+                        </div>
+                    </div>
+                `
+                card.onclick = () => {
+                    const input = document.getElementById('chat-input')
+                    if (input) {
+                        input.value = prompt.text
+                        input.focus()
+                    }
+                }
+                container.appendChild(card)
+            })
+        }
+
+        function useVoiceStarter(element) {
+            // Highlight the selected prompt
+            document.querySelectorAll('#voice-call-modal .text-white\\/70 > div').forEach(el => {
+                el.classList.remove('!text-white', 'font-medium')
+            })
+            element.classList.add('!text-white', 'font-medium')
+            
+            showToast(`Prompt ready: "${element.innerText}" — Say it during the call!`, 'default')
+            
+            // Reset highlight after 2 seconds
+            setTimeout(() => {
+                element.classList.remove('!text-white', 'font-medium')
+            }, 2000)
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input')
+            const value = input.value.trim()
+            if (!value || currentChatMentorId === null) return
+            const messagesContainer = document.getElementById('chat-messages')
+            messagesContainer.innerHTML += `<div class="chat-bubble user"><div>${value}</div></div>`
+            input.value = ''
+            messagesContainer.scrollTop = messagesContainer.scrollHeight
+            setTimeout(() => {
+                const replies = ["That's a great question!", "Absolutely — here's what worked for me...", "I totally understand. Let me share a framework...", "Yes! One thing that helped me early on was..."]
+                const randomReply = replies[Math.floor(Math.random() * replies.length)]
+                messagesContainer.innerHTML += `<div class="chat-bubble mentor"><div>${randomReply}</div></div>`
+                messagesContainer.scrollTop = messagesContainer.scrollHeight
+            }, 850)
+        }
+
+        function endChat() {
+            hideChatModal()
+            if (currentChatMentorId === null) return
+            const mentor = mentors.find(m => m.id === currentChatMentorId)
+            document.getElementById('feedback-mentor-name').innerText = mentor.name
+            document.getElementById('feedback-modal').classList.remove('hidden')
+            document.getElementById('feedback-modal').classList.add('flex')
+        }
+
+        function startVoiceCall() {
+            if (currentChatMentorId === null) return
+            const mentor = mentors.find(m => m.id === currentChatMentorId)
+            if (!mentor) return
+            hideChatModal()
+            
+            const avatarEl = document.getElementById('call-avatar')
+            const nameEl = document.getElementById('call-name')
+            const platformEl = document.getElementById('call-platform')
+            const timerEl = document.getElementById('call-timer')
+            const modal = document.getElementById('voice-call-modal')
+            
+            if (avatarEl) avatarEl.src = mentor.avatar
+            if (nameEl) nameEl.innerText = mentor.name
+            if (platformEl) {
+                platformEl.innerText = mentor.scheduledPlatform === 'wecom' ? 'Connected via WeCom' : 'Connected via Microsoft Teams'
+            }
+            
+            if (modal) {
+                modal.classList.remove('hidden')
+                modal.classList.add('flex')
+            }
+            
+            callSeconds = 0
+            if (timerEl) timerEl.innerText = '00:00'
+            if (callInterval) clearInterval(callInterval)
+            callInterval = setInterval(() => {
+                callSeconds++
+                const min = String(Math.floor(callSeconds / 60)).padStart(2, '0')
+                const sec = String(callSeconds % 60).padStart(2, '0')
+                if (timerEl) timerEl.innerText = `${min}:${sec}`
+            }, 1000)
+            
+            showToast(`Voice call started with ${mentor.name}`, 'default')
+        }
+
+        function endVoiceCall() {
+            const modal = document.getElementById('voice-call-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+            if (callInterval) { clearInterval(callInterval); callInterval = null }
+            showToast('Call ended. Thank you!', 'default')
+            setTimeout(() => {
+                if (currentChatMentorId !== null) {
+                    const mentor = mentors.find(m => m.id === currentChatMentorId)
+                    document.getElementById('feedback-mentor-name').innerText = mentor.name
+                    document.getElementById('feedback-modal').classList.remove('hidden')
+                    document.getElementById('feedback-modal').classList.add('flex')
+                }
+            }, 1200)
+        }
+
+        function muteCall() { showToast('Microphone muted (demo)', 'default') }
+        function switchCallPlatform() {
+            const options = ['Microsoft Teams', 'WeCom']
+            const random = options[Math.floor(Math.random() * options.length)]
+            showToast(`Redirecting to ${random}...`, 'success')
+            setTimeout(() => showToast(`Call transferred to ${random}!`, 'success'), 1400)
+        }
+
+        function setRating(rating) {
+            currentRating = rating
+            const stars = document.querySelectorAll('#star-rating .star')
+            stars.forEach((star, index) => {
+                if (index < rating) { star.classList.add('text-amber-400'); star.classList.remove('text-slate-300') }
+                else { star.classList.remove('text-amber-400'); star.classList.add('text-slate-300') }
+            })
+            const texts = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent']
+            document.getElementById('rating-text').innerText = texts[rating]
+        }
+
+        function submitFeedback() {
+            if (currentChatMentorId === null) return
+            const mentor = mentors.find(m => m.id === currentChatMentorId)
+            const knowledge = document.querySelector('input[name="knowledge"]:checked').value
+            const goal = document.querySelector('input[name="goal"]:checked').value
+            const comment = document.getElementById('feedback-text').value.trim()
+            
+            mentor.reviews += 1
+            if (currentRating > 0) mentor.rating = parseFloat(((mentor.rating * (mentor.reviews - 1) + currentRating) / mentor.reviews).toFixed(2))
+            mentor.sessions += 1
+            
+            let newBadge = null
+            if (mentor.sessions >= 100 && !mentor.badges.includes("Century Mentor")) { mentor.badges.push("Century Mentor"); newBadge = "Century Mentor" }
+            else if (currentRating === 5 && !mentor.badges.includes("Perfect Session")) { mentor.badges.push("Perfect Session"); newBadge = "Perfect Session" }
+            
+            renderMentorCards()
+            updateMatchesList()
+            hideFeedbackModal()
+            
+            let msg = `Thank you! Feedback for ${mentor.name} recorded.`
+            if (newBadge) msg += ` 🎉 They unlocked "${newBadge}"!`
+            showToast(msg, newBadge ? 'success' : 'default')
+            
+            if (currentRating >= 4 && Math.random() > 0.5 && !userBadges.includes("Feedback Champion")) {
+                userBadges.push("Feedback Champion")
+                setTimeout(() => { showToast("You earned a new badge: Feedback Champion! 🏆", 'success'); renderMenteeBadges() }, 1600)
+            }
+            currentChatMentorId = null
+        }
+
+        function hideFeedbackModal() {
+            const modal = document.getElementById('feedback-modal')
+            modal.classList.remove('flex')
+            modal.classList.add('hidden')
+            currentRating = 0
+            document.querySelectorAll('#star-rating .star').forEach(s => { s.classList.remove('text-amber-400'); s.classList.add('text-slate-300') })
+            document.getElementById('rating-text').innerText = 'Tap a star to rate'
+            document.getElementById('feedback-text').value = ''
+        }
+
+        function startChatFromProfile() {
+            hideProfileModal()
+            if (currentMentorId !== null) startChat(currentMentorId)
+        }
+
+        function updateUpcomingSessions() {
+            const container = document.getElementById('upcoming-sessions')
+            if (bookedSessions.length === 0) {
+                container.innerHTML = `<div class="text-center py-4 text-slate-400 text-sm">No upcoming sessions yet. Book one from Discover!</div>`
+                return
+            }
+            container.innerHTML = bookedSessions.map(s => `
+                <div class="flex items-center justify-between py-3 border-b last:border-none">
+                    <div class="flex items-center gap-x-3">
+                        <img src="${s.avatar}" class="w-9 h-9 rounded-xl" alt="">
+                        <div>
+                            <div class="font-medium">${s.mentorName}</div>
+                            <div class="text-xs text-emerald-600">${s.dateTime} • ${s.commType === 'voice' ? (s.platform === 'teams' ? 'Microsoft Teams' : 'WeCom') : 'Text Chat'}</div>
+                        </div>
+                    </div>
+                    <div class="px-3 py-1 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">${s.status}</div>
+                </div>
+            `).join('')
+        }
+
+        function updateMatchesCount() {
+            const sidebarCount = document.getElementById('matches-count')
+            const sectionCount = document.getElementById('section-matches-count')
+            
+            const count = bookedSessions.length
+            
+            // Sidebar count
+            if (sidebarCount) {
+                if (count > 0) {
+                    sidebarCount.innerText = count
+                    sidebarCount.classList.remove('hidden')
+                } else {
+                    sidebarCount.classList.add('hidden')
+                }
+            }
+            
+            // Section title count
+            if (sectionCount) {
+                sectionCount.innerText = `(${count})`
+            }
+        }
+
+        function updateMatchesList() {
+            const container = document.getElementById('matches-list')
+            container.innerHTML = ''
+            const matchedMentors = mentors.filter(m => bookedSessions.some(b => b.mentorId === m.id))
+            if (matchedMentors.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400">No active matches yet. Book a session from Discover!</div>`
+                return
+            }
+            matchedMentors.forEach(mentor => {
+                const html = `
+                    <div onclick="showMentorProfile(${mentor.id})" class="bg-white border border-emerald-200 hover:border-emerald-300 transition-colors rounded-3xl p-5 flex items-center gap-5 cursor-pointer">
+                        <img src="${mentor.avatar}" class="w-14 h-14 rounded-2xl" alt="">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-x-3">
+                                <div class="font-semibold text-lg">${mentor.name}</div>
+                                <span class="px-3 py-1 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">Active match</span>
+                            </div>
+                            <div class="text-sm text-slate-500">${mentor.title}</div>
+                            <div class="mt-2 flex gap-x-2">${mentor.badges.slice(0,2).map(b => getBadgeHTML(b, 'small')).join('')}</div>
+                        </div>
+                        <div class="text-right">
+                            <button onclick="event.stopImmediatePropagation(); joinScheduledSession(${mentor.id})" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-2xl">Join</button>
+                        </div>
+                    </div>
+                `
+                container.innerHTML += html
+            })
+        }
+
+        function renderRecentMatchesHome() {
+            const container = document.getElementById('recent-matches-home')
+            container.innerHTML = ''
+            const recent = mentors.slice(0, 2)
+            recent.forEach(mentor => {
+                const html = `
+                    <div onclick="showMentorProfile(${mentor.id})" class="bg-white border border-slate-100 rounded-3xl p-4 flex items-center gap-4 cursor-pointer hover:border-indigo-200">
+                        <img src="${mentor.avatar}" class="w-12 h-12 rounded-2xl object-cover" alt="">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold">${mentor.name}</div>
+                            <div class="text-sm text-slate-500">${mentor.title}</div>
+                            <div class="flex items-center gap-x-1 mt-1">${mentor.badges.slice(0,1).map(b => getBadgeHTML(b, 'small')).join('')}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="flex items-center justify-end text-amber-400"><i class="fa-solid fa-star text-xs"></i><span class="ml-1 text-sm font-medium text-slate-700">${mentor.rating}</span></div>
+                            <div class="text-xs text-slate-400">${mentor.sessions} sessions</div>
+                        </div>
+                    </div>
+                `
+                container.innerHTML += html
+            })
+        }
+
+        function renderMenteeBadges() {
+            const container = document.getElementById('mentee-badges')
+            container.innerHTML = ''
+            const allBadges = [
+                { name: "Active Mentee", icon: "fa-user-check", color: "emerald" },
+                { name: "Quick Learner", icon: "fa-lightbulb", color: "amber" },
+                { name: "Goal Crusher", icon: "fa-bullseye", color: "rose" },
+                { name: "Feedback Champion", icon: "fa-comment-dots", color: "indigo" },
+                { name: "Session Veteran", icon: "fa-calendar-check", color: "sky" },
+                { name: "Community Builder", icon: "fa-users", color: "violet" },
+                { name: "Lifelong Learner", icon: "fa-graduation-cap", color: "teal" },
+                { name: "Super Connector", icon: "fa-link", color: "emerald" }
+            ]
+            allBadges.forEach(badge => {
+                const isEarned = userBadges.includes(badge.name)
+                const html = `
+                    <div class="bg-white border ${isEarned ? 'border-emerald-200' : 'border-slate-100'} rounded-2xl p-4 flex items-center gap-x-3 ${isEarned ? 'shadow-sm' : 'opacity-60'}">
+                        <div class="w-9 h-9 rounded-2xl flex-shrink-0 flex items-center justify-center ${isEarned ? 'bg-emerald-100' : 'bg-slate-100'}">
+                            <i class="fa-solid ${badge.icon} ${isEarned ? 'text-emerald-600' : 'text-slate-400'}"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold text-sm ${isEarned ? '' : 'text-slate-400'}">${badge.name}</div>
+                            <div class="text-[10px] ${isEarned ? 'text-emerald-600' : 'text-slate-400'}">${isEarned ? 'Unlocked' : 'Locked'}</div>
+                        </div>
+                    </div>
+                `
+                container.innerHTML += html
+            })
+        }
+
+        function renderTopMentorsBadges() {
+            const container = document.getElementById('top-mentors-badges')
+            container.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-x-3">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=DavidKim" class="w-8 h-8 rounded-full" alt="">
+                        <div>
+                            <div class="font-medium">David</div>
+                            <div class="text-xs text-slate-500">18 badges • 4.95 rating</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-x-1">${getBadgeHTML("Top Mentor", "small")}${getBadgeHTML("Leadership Expert", "small")}</div>
+                </div>
+            `
+        }
+
+        function showToast(message, type = 'default') {
+            const container = document.getElementById('toast-container')
+            const colors = type === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
+            const toast = document.createElement('div')
+            toast.className = `max-w-xs px-5 py-4 rounded-2xl shadow-lg flex items-start gap-x-3 ${colors} mb-3`
+            toast.innerHTML = `<div class="flex-1 text-sm">${message}</div><button onclick="this.parentElement.remove()" class="text-white/70 hover:text-white text-xl leading-none">×</button>`
+            container.appendChild(toast)
+            setTimeout(() => toast.remove(), 4800)
+        }
+
+        function showNotifications() {
+            const container = document.getElementById('toast-container')
+            const notif = document.createElement('div')
+            notif.className = `max-w-xs px-5 py-4 bg-white border border-slate-200 shadow-xl rounded-2xl mb-3`
+            notif.innerHTML = `
+                <div class="font-semibold text-sm mb-1">New match available!</div>
+                <div class="text-xs text-slate-600">Sarah (Executive Guide) is a 96% match for you.</div>
+                <div class="mt-2 text-xs"><span class="text-indigo-600 font-medium cursor-pointer" onclick="this.closest('.max-w-xs').remove(); switchSection('discover')">View profile →</span></div>
+            `
+            container.appendChild(notif)
+            setTimeout(() => notif.remove(), 6500)
+        }
+
+        function switchSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
+            const target = document.getElementById(section)
+            if (target) target.classList.add('active')
+            
+            document.querySelectorAll('[id^="nav-"]').forEach(nav => nav.classList.remove('active', 'bg-indigo-600', 'text-white'))
+            const navEl = document.getElementById(`nav-${section}`)
+            if (navEl) navEl.classList.add('active', 'bg-indigo-600', 'text-white')
+            
+            if (section === 'discover') renderMentorCards()
+            if (section === 'achievements') {
+                renderMenteeBadges()
+                renderTopMentorsBadges()
+            }
+            if (section === 'matches') updateMatchesList()
+            if (section === 'health') {
+                renderPairingHealth()
+            }
+            if (section === 'progress') {
+                renderProgressTracking()
+            }
+            if (section === 'resources') {
+                // Resources section doesn't need special rendering
+            }
+        }
+
+        function setupGlobalSearch() {
+            const searchInput = document.getElementById('global-search')
+            searchInput.addEventListener('input', () => {
+                const term = searchInput.value.toLowerCase().trim()
+                if (!term) {
+                    if (document.getElementById('discover').classList.contains('active')) renderMentorCards(mentors)
+                    return
+                }
+                const filtered = mentors.filter(m => m.name.toLowerCase().includes(term) || m.title.toLowerCase().includes(term) || m.expertise.some(e => e.toLowerCase().includes(term)))
+                if (document.getElementById('discover').classList.contains('active')) {
+                    renderMentorCards(filtered)
+                } else {
+                    switchSection('discover')
+                    setTimeout(() => renderMentorCards(filtered), 50)
+                }
+            })
+        }
+
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                if (e.metaKey && e.key === 'k') { e.preventDefault(); document.getElementById('global-search').focus() }
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => {
+                        m.classList.add('hidden')
+                        m.classList.remove('flex')
+                    })
+                }
+            })
+        }
+
+        function renderPairingHealth() {
+            const tbody = document.getElementById('pairing-health-table')
+            if (!tbody) return
+
+            tbody.innerHTML = ''
+            
+            const pairingData = [
+                { id: 1, mentor: "David", mentee: "Mentee", sessions: 18, lastSession: "2 days ago", health: 94, status: "Healthy" },
+                { id: 2, mentor: "Michael", mentee: "Mentee", sessions: 4, lastSession: "3 weeks ago", health: 52, status: "Needs Check-in" },
+                { id: 3, mentor: "Emily", mentee: "Mentee", sessions: 11, lastSession: "5 days ago", health: 87, status: "Healthy" },
+                { id: 4, mentor: "Sarah Patel", mentee: "Mentee", sessions: 2, lastSession: "1 month ago", health: 31, status: "Needs Check-in" },
+                { id: 5, mentor: "James Thompson", mentee: "Mentee", sessions: 9, lastSession: "Yesterday", health: 91, status: "Healthy" }
+            ]
+            
+            pairingData.forEach(pair => {
+                const row = document.createElement('tr')
+                row.className = 'border-b hover:bg-slate-50'
+                const healthColor = pair.health >= 80 ? 'text-emerald-600' : pair.health >= 60 ? 'text-amber-600' : 'text-rose-600'
+                const statusColor = pair.status === 'Healthy' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                
+                row.innerHTML = `
+                    <td class="py-4">
+                        <div class="font-medium">${pair.mentor}</div>
+                        <div class="text-xs text-slate-500">with ${pair.mentee}</div>
+                    </td>
+                    <td class="py-4 text-sm">${pair.sessions} sessions</td>
+                    <td class="py-4 text-sm text-slate-500">${pair.lastSession}</td>
+                    <td class="py-4">
+                        <div class="flex items-center gap-x-2">
+                            <div class="font-semibold health-score ${healthColor}">${pair.health}</div>
+                            <div class="flex-1 max-w-[80px] bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div class="health-bar" style="width: ${pair.health}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-4"><span class="px-3 py-1 text-xs font-medium rounded-full ${statusColor}">${pair.status}</span></td>
+                    <td class="py-4 text-right">
+                        ${pair.status === 'Needs Check-in' ? 
+                            `<button onclick="flagPair(${pair.id})" class="text-xs px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl">Flag for HR</button>` : 
+                            `<span class="text-xs text-slate-400">—</span>`}
+                    </td>
+                `
+                tbody.appendChild(row)
+            })
+        }
+
+        function flagPair(id) {
+            // Find the row and update its status
+            const rows = document.querySelectorAll('#pairing-health-table tr');
+            rows.forEach(row => {
+                if (row.innerHTML.includes(`flagPair(${id})`)) {
+                    // Change status cell
+                    const statusCell = row.querySelector('td:nth-child(5)');
+                    if (statusCell) {
+                        statusCell.innerHTML = `<span class="px-3 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-700">Flagged for HR</span>`;
+                    }
+                    
+                    // Disable the button
+                    const button = row.querySelector('button');
+                    if (button) {
+                        button.outerHTML = `<span class="text-xs px-3 py-1 bg-slate-200 text-slate-500 rounded-2xl">Flagged</span>`;
+                    }
+                }
+            });
+            
+            showToast('Pair flagged for HR review ✓', 'success');
+        }
+
+        function flagAllLowHealth() {
+            const rows = document.querySelectorAll('#pairing-health-table tr');
+            let flaggedCount = 0;
+            
+            rows.forEach(row => {
+                const statusText = row.textContent;
+                if (statusText.includes('Needs Check-in')) {
+                    const statusCell = row.querySelector('td:nth-child(5)');
+                    if (statusCell) {
+                        statusCell.innerHTML = `<span class="px-3 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-700">Flagged for HR</span>`;
+                    }
+                    
+                    const button = row.querySelector('button');
+                    if (button) {
+                        button.outerHTML = `<span class="text-xs px-3 py-1 bg-slate-200 text-slate-500 rounded-2xl">Flagged</span>`;
+                    }
+                    flaggedCount++;
+                }
+            });
+            
+            showToast(`${flaggedCount} low-health pairs flagged for HR ✓`, 'success');
+        }
+
+        function renderProgressTracking() {
+            const container = document.getElementById('progress-list')
+            if (!container) return
+            container.innerHTML = ''
+            
+            // Demo progress data (linked to booked sessions)
+            const progressData = bookedSessions.length > 0 ? bookedSessions.map((session, index) => ({
+                mentorName: session.mentorName,
+                sessionsCompleted: Math.floor(Math.random() * 5) + 2,
+                totalSessions: 6,
+                goalsAchieved: Math.floor(Math.random() * 3) + 1,
+                totalGoals: 4,
+                overallProgress: Math.floor(Math.random() * 40) + 55
+            })) : [
+                { mentorName: "David", sessionsCompleted: 4, totalSessions: 6, goalsAchieved: 3, totalGoals: 4, overallProgress: 78 },
+                { mentorName: "Sarah", sessionsCompleted: 2, totalSessions: 5, goalsAchieved: 1, totalGoals: 3, overallProgress: 52 }
+            ]
+            
+            progressData.forEach(item => {
+                const html = `
+                    <div class="border border-slate-200 rounded-2xl p-5">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <div class="font-semibold text-lg">${item.mentorName}</div>
+                                <div class="text-sm text-slate-500">${item.sessionsCompleted}/${item.totalSessions} sessions completed</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-3xl font-bold text-emerald-600">${item.overallProgress}%</div>
+                                <div class="text-xs text-slate-500">Overall Progress</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="flex justify-between text-xs mb-1">
+                                <div>Goals Progress</div>
+                                <div>${item.goalsAchieved}/${item.totalGoals} achieved</div>
+                            </div>
+                            <div class="w-full bg-slate-200 rounded-full h-2">
+                                <div class="bg-emerald-500 h-2 rounded-full" style="width: ${(item.goalsAchieved / item.totalGoals) * 100}%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button onclick="updateProgress(this)" class="flex-1 py-2 text-sm border border-slate-300 hover:bg-slate-50 rounded-2xl font-medium">Update Goals</button>
+                            <button onclick="logSession(this)" class="flex-1 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-medium">Log Session</button>
+                            <button onclick="sendAppreciation('${item.mentorName}', this)" class="px-4 py-2 text-sm bg-rose-100 hover:bg-rose-200 text-rose-600 rounded-2xl font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-heart"></i> <span>Appreciate</span>
+                            </button>
+                        </div>
+                    </div>
+                `
+                container.innerHTML += html
+            })
+        }
+
+        function updateProgress(element) {
+            const card = element.closest('.border')
+            if (card) {
+                showToast('Progress updated! (Demo)', 'success')
+                // In real app, this would open a modal to edit goals
+            }
+        }
+
+        function logSession(element) {
+            const card = element.closest('.border')
+            if (card) {
+                showToast('Session logged successfully! Progress updated.', 'success')
+            }
+        }
+
+        function sendAppreciation(mentorName, element) {
+            const modal = document.createElement('div')
+            modal.className = 'fixed inset-0 bg-black/60 z-[200] flex items-center justify-center'
+            modal.innerHTML = `
+                <div onclick="event.target.remove()" class="absolute inset-0"></div>
+                <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-md mx-4 rounded-3xl overflow-hidden shadow-2xl">
+                    <div class="px-6 py-5 border-b">
+                        <div class="font-semibold text-xl">Send Appreciation to ${mentorName}</div>
+                        <div class="text-sm text-slate-500">Your words mean a lot to your mentor</div>
+                    </div>
+                    
+                    <div class="p-6">
+                        <textarea id="appreciation-text" rows="5" placeholder="Thank you for always listening and guiding me with patience. I really appreciate how you helped me grow..." class="w-full border border-slate-300 rounded-2xl p-4 text-sm focus:outline-none focus:border-indigo-400"></textarea>
+                    </div>
+                    
+                    <div class="px-6 py-4 border-t bg-slate-50 flex gap-3">
+                        <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 text-sm font-medium border border-slate-300 rounded-2xl">Cancel</button>
+                        <button onclick="submitAppreciation('${mentorName}', this)" class="flex-1 py-3 text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-2xl">Send Appreciation</button>
+                    </div>
+                </div>
+            `
+            document.body.appendChild(modal)
+        }
+
+        function submitAppreciation(mentorName, btn) {
+            const modal = btn.closest('.fixed')
+            const text = modal.querySelector('#appreciation-text').value.trim()
+            
+            if (!text) {
+                alert("Please write something nice for your mentor!")
+                return
+            }
+            
+            modal.remove()
+            
+            // Show beautiful success message
+            const successModal = document.createElement('div')
+            successModal.className = 'fixed inset-0 bg-black/60 z-[210] flex items-center justify-center'
+            successModal.innerHTML = `
+                <div class="bg-white w-full max-w-sm mx-4 rounded-3xl p-8 text-center">
+                    <div class="mx-auto w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa-solid fa-heart text-rose-600 text-3xl"></i>
+                    </div>
+                    <div class="font-semibold text-2xl mb-2">Thank you!</div>
+                    <div class="text-slate-600 mb-6">Your appreciation has been sent to ${mentorName}.<br>This will make their day! ❤️</div>
+                    <button onclick="this.closest('.fixed').remove()" class="px-8 py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-3xl">Done</button>
+                </div>
+            `
+            document.body.appendChild(successModal)
+        }
+
+        function showHandbookModal(title, description) {
+            const modal = document.createElement('div')
+            modal.className = 'fixed inset-0 bg-black/60 z-[200] flex items-center justify-center'
+            modal.innerHTML = `
+                <div onclick="event.target.remove()" class="absolute inset-0"></div>
+                <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-lg mx-4 rounded-3xl overflow-hidden shadow-2xl">
+                    <div class="px-8 py-6">
+                        <div class="font-bold text-3xl mb-4">${title}</div>
+                        <div class="text-slate-600 leading-relaxed mb-8">${description}</div>
+                        
+                        <div class="bg-slate-50 rounded-2xl p-6 text-sm text-slate-600">
+                            <div class="font-semibold mb-3">What's inside:</div>
+                            <ul class="space-y-2">
+                                <li class="flex items-start gap-2"><i class="fa-solid fa-check text-emerald-500 mt-1"></i> <span>Key principles and best practices</span></li>
+                                <li class="flex items-start gap-2"><i class="fa-solid fa-check text-emerald-500 mt-1"></i> <span>Real-world examples and tips</span></li>
+                                <li class="flex items-start gap-2"><i class="fa-solid fa-check text-emerald-500 mt-1"></i> <span>Common challenges and solutions</span></li>
+                                <li class="flex items-start gap-2"><i class="fa-solid fa-check text-emerald-500 mt-1"></i> <span>Actionable frameworks</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="px-8 py-5 border-t flex gap-3">
+                        <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 text-sm font-medium border border-slate-300 rounded-2xl">Close</button>
+                        <button onclick="downloadHandbook('${title}', this)" class="flex-1 py-3 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl">Download PDF</button>
+                    </div>
+                </div>
+            `
+            document.body.appendChild(modal)
+        }
+
+        function downloadHandbook(title, btn) {
+            btn.innerHTML = `<i class="fa-solid fa-check mr-2"></i> Downloaded!`
+            setTimeout(() => {
+                btn.closest('.fixed').remove()
+                showToast(`${title} downloaded successfully!`, 'success')
+            }, 1200)
+        }
+
+        function redeemReward(points, rewardName) {
+            const currentPoints = 1250; // demo value
+            if (currentPoints >= points) {
+                showToast(`🎉 Redeemed: ${rewardName}! Check your email for the coupon code.`, 'success');
+            } else {
+                showToast(`You need ${points - currentPoints} more points to redeem this reward.`, 'default');
+            }
+        }
+
+        function initActiveMembersChart() {
+            const ctx = document.getElementById('activeMembersChart')
+            if (!ctx) return
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan 27', 'Feb 3', 'Feb 10', 'Feb 17', 'Feb 24', 'Mar 3', 'Mar 10', 'Mar 17', 'Mar 24', 'Mar 31'],
+                    datasets: [
+                        {
+                            label: 'Mentees',
+                            data: [28, 31, 35, 38, 42, 45, 48, 52, 55, 58],
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Mentors',
+                            data: [15, 17, 19, 21, 23, 25, 27, 29, 31, 33],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1e7ff' } },
+                        x: { grid: { color: '#f1e7ff' } }
+                    },
+                    elements: { point: { radius: 0 } }
+                }
+            })
+        }
+
+        function initializeApp() {
+            initializeTailwind()
+            renderMentorCards()
+            renderMenteeBadges()
+            renderTopMentorsBadges()
+            updateUpcomingSessions()
+            updateMatchesList()
+            renderRecentMatchesHome()
+            renderPairingHealth()
+            initActiveMembersChart()
+            updateMatchesCount()
+            
+            setupGlobalSearch()
+            setupKeyboardShortcuts()
+            
+            document.getElementById('home').classList.add('active')
+            document.getElementById('nav-home').classList.add('active', 'bg-indigo-600', 'text-white')
+            
+            console.log('%c[MentorMatch Final] All updates applied: New scheduling flow, Leadership badges, Cartoon icons, Simple names', 'color:#6366f1')
+        }
+
+        window.onload = initializeApp
+
+        // Add mobile bottom navigation
+        setTimeout(() => {
+            if (window.innerWidth < 1024) {
+                const mobileNav = document.createElement('div');
+                mobileNav.className = 'lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around py-2 z-[90] shadow-lg';
+                mobileNav.innerHTML = `
+                    <div onclick="switchSection('home')" class="flex flex-col items-center text-xs px-3 py-1 text-slate-600">
+                        <i class="fa-solid fa-home text-xl mb-0.5"></i>
+                        <span>Home</span>
+                    </div>
+                    <div onclick="switchSection('discover')" class="flex flex-col items-center text-xs px-3 py-1 text-slate-600">
+                        <i class="fa-solid fa-search text-xl mb-0.5"></i>
+                        <span>Discover</span>
+                    </div>
+                    <div onclick="switchSection('matches')" class="flex flex-col items-center text-xs px-3 py-1 text-slate-600">
+                        <i class="fa-solid fa-users text-xl mb-0.5"></i>
+                        <span>Matches</span>
+                    </div>
+                    <div onclick="switchSection('health')" class="flex flex-col items-center text-xs px-3 py-1 text-slate-600">
+                        <i class="fa-solid fa-chart-line text-xl mb-0.5"></i>
+                        <span>Health</span>
+                    </div>
+                    <div onclick="switchSection('achievements')" class="flex flex-col items-center text-xs px-3 py-1 text-slate-600">
+                        <i class="fa-solid fa-trophy text-xl mb-0.5"></i>
+                        <span>Badges</span>
+                    </div>
+                `;
+                document.body.appendChild(mobileNav);
+            }
+        }, 800);
+
+        // Calendar Modal
+        // Global calendar state
+        let currentCalendarMonth = 6; // June 2026
+        let currentCalendarYear = 2026;
+
+        function showCalendarModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/60 z-[200] flex items-center justify-center';
+            modal.innerHTML = `
+                <div onclick="event.target.remove()" class="absolute inset-0"></div>
+                <div onclick="event.stopImmediatePropagation()" class="bg-white w-full max-w-2xl mx-4 rounded-3xl overflow-hidden shadow-2xl">
+                    <!-- Header -->
+                    <div class="px-8 py-5 border-b flex items-center justify-between bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
+                        <div class="flex items-center gap-4">
+                            <button onclick="changeCalendarMonth(-1, this)" class="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-2xl transition-colors">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <div>
+                                <div class="font-semibold text-xl" id="calendar-month-title">June 2026</div>
+                                <div class="text-xs text-indigo-200">Your booked sessions</div>
+                            </div>
+                            <button onclick="changeCalendarMonth(1, this)" class="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-2xl transition-colors">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-1.5 text-xs font-medium bg-white/20 hover:bg-white/30 rounded-2xl transition-colors">Close</button>
+                    </div>
+                    
+                    <!-- Calendar Grid -->
+                    <div class="p-8">
+                        <div class="grid grid-cols-7 gap-2 text-center text-xs font-medium text-slate-500 mb-3">
+                            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-2" id="calendar-grid">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <div class="px-8 py-4 bg-slate-50 text-xs text-slate-500 flex items-center gap-2">
+                        <i class="fa-solid fa-info-circle"></i>
+                        <span>Green = Confirmed session. Click for details.</span>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Generate calendar for June 2026
+            setTimeout(() => generateFullYearCalendar(modal, currentCalendarMonth, currentCalendarYear), 50);
+        }
+
+        function changeCalendarMonth(direction, element) {
+            const modal = element.closest('.fixed');
+            currentCalendarMonth += direction;
+            
+            // Handle year change
+            if (currentCalendarMonth > 12) {
+                currentCalendarMonth = 1;
+                currentCalendarYear++;
+            }
+            if (currentCalendarMonth < 1) {
+                currentCalendarMonth = 12;
+                currentCalendarYear--;
+            }
+            
+            // Only allow months after June 2026
+            if (currentCalendarYear === 2026 && currentCalendarMonth < 6) {
+                currentCalendarMonth = 6;
+            }
+            
+            generateFullYearCalendar(modal, currentCalendarMonth, currentCalendarYear);
+        }
+
+        function generateFullYearCalendar(modalElement, month, year) {
+            const grid = modalElement.querySelector('#calendar-grid');
+            const title = modalElement.querySelector('#calendar-month-title');
+            if (!grid || !title) return;
+            
+            grid.innerHTML = '';
+            
+            // Update title
+            const monthNames = ["January", "February", "March", "April", "May", "June", 
+                               "July", "August", "September", "October", "November", "December"];
+            title.innerText = `${monthNames[month - 1]} ${year}`;
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month - 1, 1).getDay();
+            const daysInMonth = new Date(year, month, 0).getDate();
+            
+            // Empty days before the 1st
+            for (let i = 0; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'h-14';
+                grid.appendChild(empty);
+            }
+            
+            // Days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayEl = document.createElement('div');
+                dayEl.className = 'h-14 border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-sm relative cursor-pointer hover:bg-slate-50 transition-colors';
+                
+                const dayNumber = document.createElement('div');
+                dayNumber.className = 'font-medium text-slate-700';
+                dayNumber.innerText = day;
+                dayEl.appendChild(dayNumber);
+                
+                // Show bookings only on specific days (June 10, 17, 24, July 8, etc.)
+                const bookingDays = [10, 17, 24, 8, 15, 22]; // June + July dates
+                let bookingForDay = null;
+                
+                // Check if this day matches one of our booking days
+                const dayIndex = bookingDays.indexOf(day);
+                if (dayIndex !== -1 && bookedSessions[dayIndex]) {
+                    bookingForDay = bookedSessions[dayIndex];
+                }
+                
+                if (bookingForDay) {
+                    dayEl.classList.add('!border-emerald-400', 'bg-emerald-50');
+                    const bookingInfo = document.createElement('div');
+                    bookingInfo.className = 'text-[9px] text-emerald-700 font-medium mt-0.5 text-center leading-none px-1';
+                    bookingInfo.innerHTML = `${bookingForDay.mentorName}<br>${bookingForDay.dateTime.split(' ').pop()}`;
+                    dayEl.appendChild(bookingInfo);
+                    
+                    dayEl.onclick = () => {
+                        alert(`Session with ${bookingForDay.mentorName}\n${bookingForDay.dateTime}\nDuration: ${bookingForDay.duration || '30 mins'}\n\nStatus: Confirmed ✓`);
+                    };
+                }
+                
+                grid.appendChild(dayEl);
+            }
+        }
+    </script>
+</body>
+</html>
